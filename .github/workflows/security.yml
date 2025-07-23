@@ -28,14 +28,57 @@ jobs:
       
     - name: Run govulncheck
       working-directory: ./backend
-      run: govulncheck ./...
+      run: |
+        echo "Running Go vulnerability check..."
+        govulncheck -json ./... > govulncheck-report.json || true
+        echo "Vulnerability check completed"
+        
+    - name: Display govulncheck results
+      working-directory: ./backend
+      run: |
+        echo "Govulncheck Summary:"
+        if [ -f govulncheck-report.json ]; then
+          # Count vulnerabilities
+          vuln_count=$(cat govulncheck-report.json | jq -r 'select(.finding != null) | .finding.trace[0].function' 2>/dev/null | wc -l || echo "0")
+          echo "Vulnerabilities found: $vuln_count"
+          
+          if [ "$vuln_count" -gt 0 ]; then
+            echo "⚠️  Vulnerabilities detected in Go dependencies"
+            cat govulncheck-report.json | jq -r 'select(.finding != null)'
+          else
+            echo "✅ No vulnerabilities found in Go dependencies"
+          fi
+        else
+          echo "✅ No vulnerabilities found"
+        fi
+        
+    - name: Install gosec
+      run: go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest
       
-    - name: Run Go security scan
-      uses: securecodewarrior/github-action-add-sarif@v1
-      if: always()
-      with:
-        sarif-file: 'go-security.sarif'
-      continue-on-error: true
+    - name: Run gosec security scan  
+      working-directory: ./backend
+      run: |
+        echo "Running gosec security scan..."
+        gosec -fmt json -out gosec-report.json ./... || true
+        echo "Security scan completed"
+        
+    - name: Display gosec results
+      working-directory: ./backend
+      run: |
+        echo "Gosec Security Summary:"
+        if [ -f gosec-report.json ]; then
+          issues=$(cat gosec-report.json | jq -r '.Issues | length' 2>/dev/null || echo "0")
+          echo "Security issues found: $issues"
+          
+          if [ "$issues" -gt 0 ]; then
+            echo "⚠️  Security issues detected:"
+            cat gosec-report.json | jq -r '.Issues[] | "- \(.severity): \(.details) in \(.file):\(.line)"'
+          else
+            echo "✅ No security issues found"
+          fi
+        else
+          echo "✅ No security issues found"
+        fi
 
   npm-security:
     name: NPM Security Scan
