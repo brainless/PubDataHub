@@ -1,0 +1,119 @@
+# Pre-commit hooks configuration
+# Install with: pip install pre-commit && pre-commit install
+
+repos:
+  # General file checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+
+  # Go formatting and linting
+  - repo: local
+    hooks:
+      - id: go-fmt
+        name: Go Format
+        entry: gofmt
+        language: system
+        args: [-w, -s]
+        files: \.go$
+        pass_filenames: true
+        
+      - id: go-vet
+        name: Go Vet
+        entry: bash
+        language: system
+        args:
+          - -c
+          - 'cd backend && go vet ./...'
+        files: \.go$
+        pass_filenames: false
+        
+      - id: go-mod-tidy
+        name: Go Mod Tidy
+        entry: bash
+        language: system
+        args:
+          - -c
+          - 'cd backend && go mod tidy'
+        files: ^backend/(go\.(mod|sum)|.*\.go)$
+        pass_filenames: false
+        
+      - id: go-test
+        name: Go Tests
+        entry: bash
+        language: system
+        args:
+          - -c
+          - 'cd backend && go test -race ./...'
+        files: \.go$
+        pass_filenames: false
+
+  # TypeScript/JavaScript formatting and linting
+  - repo: local
+    hooks:
+      - id: typescript-check
+        name: TypeScript Check
+        entry: bash
+        language: system
+        args:
+          - -c
+          - 'cd frontend && npx tsc --noEmit'
+        files: ^frontend/.*\.(ts|tsx)$
+        pass_filenames: false
+        
+      - id: eslint
+        name: ESLint
+        entry: bash
+        language: system
+        args:
+          - -c
+          - 'cd frontend && npm run lint'
+        files: ^frontend/.*\.(ts|tsx|js|jsx)$
+        pass_filenames: false
+        
+      - id: frontend-build-check
+        name: Frontend Build Check
+        entry: bash
+        language: system
+        args:
+          - -c
+          - 'cd frontend && npm run build'
+        files: ^frontend/
+        pass_filenames: false
+
+  # Security checks
+  - repo: local
+    hooks:
+      - id: govulncheck
+        name: Go Vulnerability Check
+        entry: bash
+        language: system
+        args:
+          - -c
+          - 'cd backend && govulncheck ./... || echo "⚠️  Vulnerabilities found - check govulncheck output"'
+        files: ^backend/(go\.(mod|sum)|.*\.go)$
+        pass_filenames: false
+        
+      - id: npm-audit
+        name: NPM Security Audit
+        entry: bash
+        language: system
+        args:
+          - -c
+          - 'cd frontend && npm audit --audit-level=moderate || echo "⚠️  NPM vulnerabilities found - run npm audit fix"'
+        files: ^frontend/(package(-lock)?\.json|.*\.(ts|tsx|js|jsx))$
+        pass_filenames: false
+
+  # Conventional commits
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v3.4.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]

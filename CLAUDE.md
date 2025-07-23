@@ -74,32 +74,116 @@ PubDataHub/
 
 ## Development Commands
 
-### Backend (from root directory)
+### Quick Start (Recommended)
+- **Setup environment**: `make setup` - Installs all dependencies and dev tools
+- **Start both servers**: `make dev` - Runs backend (:8080) and frontend (:5173)
+- **Quick validation**: `make quick-check` - Fast pre-commit checks
+- **Full validation**: `make ci-check` - Complete CI simulation locally
+
+### Individual Commands
+
+#### Backend (from root directory)
 - Start server: `cd backend && go run cmd/server/main.go` (runs on :8080)
 - Generate TypeScript types: `cd backend && ./scripts/generate-types.sh`
 - Install dependencies: `cd backend && go mod tidy`
+- Run tests: `make test-backend`
+- Security scan: `make security-backend`
 
-### Frontend (from root directory)  
+#### Frontend (from root directory)  
 - Start dev server: `cd frontend && npm run dev` (runs on :5173)
 - Install dependencies: `cd frontend && npm install`
 - Build production: `cd frontend && npm run build`
+- Type check: `cd frontend && npx tsc --noEmit`
+- Lint: `cd frontend && npm run lint`
 
-### Git Operations
+#### Git Operations
 - Create feature branch: `git checkout -b feature/name`
 - Commit changes: `git commit -m "description"`
 - Push to remote: `git push -u origin branch-name`
+
+#### Local Quality Assurance
+- **Format code**: `make format` - Auto-format Go and frontend code
+- **Run linters**: `make lint` - Check code quality
+- **Run tests**: `make test` - Execute all test suites
+- **Security scans**: `make security` - Check for vulnerabilities
+- **Build check**: `make build` - Verify builds work
+- **Integration test**: `make integration-test` - Test full stack locally
 
 ## API Integration
 
 The backend generates TypeScript types at `backend/api-types.ts` for frontend consumption. After modifying Go structs in `internal/types/`, run the type generation script to update frontend types.
 
+## Local Development Setup
+
+### Pre-commit Hooks (Highly Recommended)
+Pre-commit hooks automatically run checks before each commit to catch issues early:
+
+```bash
+# Install pre-commit (requires Python/pip)
+pip install pre-commit
+
+# Install hooks for this repository
+pre-commit install
+pre-commit install --hook-type commit-msg
+
+# Test hooks on all files
+pre-commit run --all-files
+```
+
+**What the hooks check:**
+- Go code formatting (`gofmt`)
+- Go static analysis (`go vet`)
+- Go tests with race detection
+- Go vulnerability scanning (`govulncheck`)
+- TypeScript compilation
+- ESLint linting
+- NPM security audit
+- Conventional commit message format
+
+### Manual Validation Options
+
+If you prefer not to use pre-commit hooks, run checks manually:
+
+```bash
+# Quick validation (formatting, linting, type checking)
+./scripts/validate.sh --quick
+
+# Full validation (includes tests, security, integration)
+./scripts/validate.sh
+
+# Auto-fix issues where possible
+./scripts/validate.sh --fix
+
+# Using Makefile commands
+make quick-check    # Fast pre-commit checks
+make ci-check      # Full CI simulation
+make commit-check  # Check if ready for commit
+make push-check    # Check if ready for push
+```
+
+### Development Tools Installation
+
+Essential tools for local development:
+
+```bash
+# Install all development tools
+make setup
+
+# Manual installation if needed
+go install golang.org/x/vuln/cmd/govulncheck@latest
+go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest
+pip install pre-commit
+```
+
 ## Development Notes
 
 - Always work on feature branches, never directly on main
+- **Run `make quick-check` before committing** to catch CI issues locally
 - Use GitHub issues to track progress and requirements
 - Update CLAUDE.md files when project structure or workflow changes
 - Test API endpoints before committing
 - Generate TypeScript types after modifying Go response structures
+- **Pre-commit hooks prevent most CI failures** - highly recommended to install
 
 ## Troubleshooting Common Issues
 
@@ -127,3 +211,39 @@ The backend generates TypeScript types at `backend/api-types.ts` for frontend co
 - **Problem**: "Address already in use" error on port 8080
 - **Solution**: Kill existing processes: `pkill -f "go run cmd/server/main.go"`
 - **Check**: Use `lsof -i :8080` to see what's using the port
+
+### CI/CD Pipeline Issues (Prevention)
+
+#### Go Formatting Failures
+- **Problem**: CI fails with "files are not formatted" error
+- **Local Fix**: `make format` or `gofmt -s -w .` in backend directory
+- **Prevention**: Install pre-commit hooks or run `make quick-check` before committing
+
+#### TypeScript Export Conflicts
+- **Problem**: CI fails with "Export declaration conflicts" error
+- **Local Check**: `cd frontend && npx tsc --noEmit`
+- **Prevention**: Run TypeScript compiler locally, avoid duplicate exports
+
+#### Integration Test Server Startup
+- **Problem**: CI fails with "Failed to connect to localhost" error
+- **Local Test**: `make integration-test` - tests full stack locally
+- **Prevention**: Ensure backend starts properly with health checks
+
+#### NPM/Go Security Vulnerabilities
+- **Problem**: CI fails security scans
+- **Local Check**: `make security` - runs govulncheck and npm audit
+- **Prevention**: Regular dependency updates and security scanning
+
+### Local Validation Before Push
+To avoid CI failures, always run locally before pushing:
+
+```bash
+# Quick pre-commit validation (recommended minimum)
+make quick-check
+
+# Full CI simulation (recommended for important changes)
+make ci-check
+
+# If you have pre-commit hooks installed, they'll run automatically
+git commit -m "your message"
+```
