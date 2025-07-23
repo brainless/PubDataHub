@@ -22,7 +22,7 @@ setup: ## Install all dependencies and setup development environment
 	pre-commit install --hook-type commit-msg || echo "⚠️  pre-commit not available"
 	@echo "Installing development tools..."
 	go install golang.org/x/vuln/cmd/govulncheck@latest || echo "⚠️  Failed to install govulncheck"
-	go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest || echo "⚠️  Failed to install gosec"
+	go install github.com/securecodewarrior/gosec/cmd/gosec@latest || echo "⚠️  Failed to install gosec"
 	@echo "✅ Development environment setup complete!"
 
 clean: ## Clean build artifacts and caches

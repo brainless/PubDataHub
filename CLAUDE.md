@@ -171,7 +171,7 @@ make setup
 
 # Manual installation if needed
 go install golang.org/x/vuln/cmd/govulncheck@latest
-go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest
+go install github.com/securecodewarrior/gosec/cmd/gosec@latest
 pip install pre-commit
 ```
 
