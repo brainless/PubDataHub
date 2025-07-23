@@ -1,0 +1,246 @@
+# GoReleaser configuration for PubDataHub cross-platform releases
+version: 2
+
+before:
+  hooks:
+    # Build frontend assets before building Go binary
+    - cd frontend && npm ci
+    - cd frontend && npm run build
+    # Generate TypeScript types
+    - cd backend && ./scripts/generate-types.sh
+
+builds:
+  - id: pubdatahub
+    main: ./backend/cmd/server/main.go
+    binary: pubdatahub
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    # Exclude unsupported combinations
+    ignore:
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+    tags:
+      - netgo
+      - osusergo
+
+archives:
+  - id: pubdatahub-archive
+    format: tar.gz
+    format_overrides:
+      - goos: windows
+        format: zip
+    name_template: "pubdatahub_{{.Version}}_{{.Os}}_{{.Arch}}"
+    files:
+      - README.md
+      - LICENSE
+      - CHANGELOG.md
+
+checksum:
+  name_template: "checksums.txt"
+
+snapshot:
+  name_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+      - "^refactor:"
+      - "^style:"
+      - "Merge pull request"
+      - "Merge branch"
+  groups:
+    - title: Features
+      regexp: "^.*feat[(\\w)]*:+.*$"
+      order: 0
+    - title: "Bug fixes"
+      regexp: "^.*fix[(\\w)]*:+.*$"
+      order: 1
+    - title: Others
+      order: 999
+
+# Windows installers
+nfpms:
+  - id: pubdatahub-linux
+    package_name: pubdatahub
+    vendor: PubDataHub
+    homepage: https://github.com/brainless/PubDataHub
+    maintainer: PubDataHub Team <noreply@github.com>
+    description: Tool for finding, downloading and browsing publicly available data
+    license: MIT
+    formats:
+      - deb
+      - rpm
+      - apk
+    bindir: /usr/bin
+    contents:
+      - src: README.md
+        dst: /usr/share/doc/pubdatahub/README.md
+      - src: LICENSE
+        dst: /usr/share/doc/pubdatahub/LICENSE
+    scripts:
+      postinstall: |
+        echo "PubDataHub installed successfully!"
+        echo "Run 'pubdatahub' to start the application"
+      preremove: |
+        echo "Removing PubDataHub..."
+
+# macOS packages
+brews:
+  - name: pubdatahub
+    repository:
+      owner: brainless
+      name: homebrew-pubdatahub
+      branch: main
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    directory: Formula
+    homepage: https://github.com/brainless/PubDataHub
+    description: Tool for finding, downloading and browsing publicly available data
+    license: MIT
+    test: |
+      system "#{bin}/pubdatahub --version"
+    install: |
+      bin.install "pubdatahub"
+
+# Chocolatey for Windows
+chocolateys:
+  - name: pubdatahub
+    authors: PubDataHub Team
+    project_url: https://github.com/brainless/PubDataHub
+    url_template: "https://github.com/brainless/PubDataHub/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
+    copyright: 2025 PubDataHub Team
+    license_url: https://github.com/brainless/PubDataHub/blob/main/LICENSE
+    project_source_url: https://github.com/brainless/PubDataHub
+    docs_url: https://github.com/brainless/PubDataHub/blob/main/README.md
+    bug_tracker_url: https://github.com/brainless/PubDataHub/issues
+    tags: "data analysis api cli"
+    summary: Tool for finding, downloading and browsing publicly available data
+    description: |
+      PubDataHub is a comprehensive tool for finding, downloading and browsing 
+      publicly available data from APIs or stores like Amazon S3. It provides 
+      both a web interface and command-line tools for data discovery and management.
+    release_notes: "https://github.com/brainless/PubDataHub/releases/tag/v{{ .Version }}"
+
+# Snapcraft for Linux
+snapcrafts:
+  - name: pubdatahub
+    publish: true
+    summary: Tool for finding, downloading and browsing publicly available data
+    description: |
+      PubDataHub is a comprehensive tool for finding, downloading and browsing 
+      publicly available data from APIs or stores like Amazon S3.
+    grade: stable
+    confinement: strict
+    license: MIT
+    base: core22
+    apps:
+      pubdatahub:
+        command: pubdatahub
+        plugs: ["home", "network", "network-bind"]
+
+# Docker images
+dockers:
+  - image_templates:
+      - "ghcr.io/brainless/pubdatahub:{{ .Version }}-amd64"
+      - "ghcr.io/brainless/pubdatahub:latest-amd64"
+    dockerfile: Dockerfile.release
+    use: buildx
+    build_flag_templates:
+      - "--platform=linux/amd64"
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.title={{.ProjectName}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+  - image_templates:
+      - "ghcr.io/brainless/pubdatahub:{{ .Version }}-arm64"
+      - "ghcr.io/brainless/pubdatahub:latest-arm64"
+    dockerfile: Dockerfile.release
+    use: buildx
+    build_flag_templates:
+      - "--platform=linux/arm64"
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.title={{.ProjectName}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+
+docker_manifests:
+  - name_template: "ghcr.io/brainless/pubdatahub:{{ .Version }}"
+    image_templates:
+      - "ghcr.io/brainless/pubdatahub:{{ .Version }}-amd64"
+      - "ghcr.io/brainless/pubdatahub:{{ .Version }}-arm64"
+  - name_template: "ghcr.io/brainless/pubdatahub:latest"
+    image_templates:
+      - "ghcr.io/brainless/pubdatahub:latest-amd64"
+      - "ghcr.io/brainless/pubdatahub:latest-arm64"
+
+# Release configuration
+release:
+  github:
+    owner: brainless
+    name: PubDataHub
+  discussion_category_name: General
+  prerelease: auto
+  mode: replace
+  header: |
+    ## PubDataHub {{.Version}}
+    
+    Welcome to this new release of PubDataHub! 
+    
+    ### Installation
+    
+    #### Quick Install (recommended)
+    ```bash
+    # macOS (Homebrew)
+    brew install brainless/pubdatahub/pubdatahub
+    
+    # Windows (Chocolatey)
+    choco install pubdatahub
+    
+    # Linux (Snap)
+    sudo snap install pubdatahub
+    
+    # Linux (DEB/RPM)
+    # Download the appropriate package from assets below
+    ```
+    
+    #### Manual Installation
+    Download the appropriate binary for your system from the assets below.
+    
+  footer: |
+    ## Docker
+    
+    ```bash
+    docker run -p 8080:8080 ghcr.io/brainless/pubdatahub:{{.Version}}
+    ```
+    
+    ## Verify Installation
+    
+    ```bash
+    pubdatahub --version
+    ```
+    
+    **Full Changelog**: https://github.com/brainless/PubDataHub/compare/{{.PreviousTag}}...{{.Tag}}
+
+# Milestone configuration
+milestones:
+  - repo:
+      owner: brainless
+      name: PubDataHub
+    close: true
+    fail_on_error: false
+    name_template: "{{ .Tag }}"
