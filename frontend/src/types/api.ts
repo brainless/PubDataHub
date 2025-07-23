@@ -9,6 +9,7 @@
 export interface HomeResponse {
   homePath: string;
 }
+
 /**
  * ErrorResponse represents an error response
  */
@@ -16,3 +17,6 @@ export interface ErrorResponse {
   error: string;
   message: string;
 }
+
+// Explicit exports to ensure module compatibility
+export type { HomeResponse, ErrorResponse };
