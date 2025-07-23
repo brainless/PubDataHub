@@ -136,18 +136,63 @@ jobs:
     - name: Start backend server
       working-directory: ./backend
       run: |
+        echo "Starting backend server..."
         go run cmd/server/main.go &
-        sleep 5
+        SERVER_PID=$!
+        echo "Backend server started with PID: $SERVER_PID"
+        echo "SERVER_PID=$SERVER_PID" >> $GITHUB_ENV
+        
+    - name: Wait for server to be ready
+      run: |
+        echo "Waiting for backend server to be ready..."
+        for i in {1..30}; do
+          if curl -f http://localhost:8080/api/home >/dev/null 2>&1; then
+            echo "✅ Backend server is ready after ${i} attempts"
+            break
+          fi
+          echo "⏳ Attempt $i: Server not ready yet, waiting 2 seconds..."
+          sleep 2
+          if [ $i -eq 30 ]; then
+            echo "❌ Server failed to start after 60 seconds"
+            echo "Checking if server process is still running..."
+            ps aux | grep "go run cmd/server/main.go" || true
+            echo "Checking server logs..."
+            jobs -l || true
+            exit 1
+          fi
+        done
         
     - name: Test API endpoints
       run: |
         echo "Testing API endpoints..."
-        curl -f http://localhost:8080/api/home || exit 1
-        echo "API endpoints working correctly"
+        echo "Testing /api/home endpoint..."
+        response=$(curl -f http://localhost:8080/api/home)
+        echo "Response: $response"
+        
+        # Validate JSON response contains homePath
+        if echo "$response" | jq -e '.homePath' >/dev/null 2>&1; then
+          echo "✅ API response contains expected homePath field"
+        else
+          echo "❌ API response missing homePath field"
+          exit 1
+        fi
+        
+        echo "✅ API endpoints working correctly"
         
     - name: Build frontend against running backend
       working-directory: ./frontend
       run: npm run build
       
     - name: Stop backend server
-      run: pkill -f "go run cmd/server/main.go" || true
+      if: always()
+      run: |
+        echo "Stopping backend server..."
+        if [ -n "$SERVER_PID" ]; then
+          echo "Killing server with PID: $SERVER_PID"
+          kill $SERVER_PID || true
+          sleep 2
+          kill -9 $SERVER_PID 2>/dev/null || true
+        fi
+        # Fallback cleanup
+        pkill -f "go run cmd/server/main.go" || true
+        echo "Backend server stopped"
