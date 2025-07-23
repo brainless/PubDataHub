@@ -45,13 +45,20 @@ PubDataHub/
 ### Feature Development Process
 1. **ALWAYS** start from main: `git checkout main`
 2. **ALWAYS** pull latest changes: `git pull origin main`
-3. Create feature branch from main: `git checkout -b feature/description`
-4. **IMPORTANT**: If working on frontend and need backend code, merge main: `git merge main`
-5. Implement changes following project structure
-6. Test implementation locally (both backend and frontend if needed)
-7. Commit with descriptive message
-8. Push branch to remote: `git push -u origin feature/branch-name`
-9. Update corresponding GitHub issue with completion status
+3. **One-time setup** (if not done already): `make setup` - installs dev tools and pre-commit hooks
+4. Create feature branch from main: `git checkout -b feature/description`
+5. **IMPORTANT**: If working on frontend and need backend code, merge main: `git merge main`
+6. Implement changes following project structure
+7. **Run local validation** before committing:
+   - **Quick check** (recommended): `make quick-check` - formatting, linting, type checking (~2 min)
+   - **Full validation** (for important changes): `make ci-check` - complete CI simulation (~5-10 min)
+   - **Auto-fix issues**: `./scripts/validate.sh --fix` - automatically fixes formatting/linting where possible
+8. **Commit with validation**: 
+   - If pre-commit hooks installed: `git commit -m "descriptive message"` (hooks run automatically)
+   - If no hooks: run `make commit-check` first, then commit
+9. **Final check before push**: `make push-check` - ensures code passes all CI checks locally
+10. Push branch to remote: `git push -u origin feature/branch-name`
+11. Update corresponding GitHub issue with completion status
 
 ### Git Branch Best Practices (IMPORTANT)
 - **Never work directly on main branch**
@@ -59,12 +66,37 @@ PubDataHub/
 - **Check which branch you're on** before starting work: `git branch --show-current`  
 - **Verify you have latest main** before creating feature branches: `git pull origin main`
 - **Keep feature branches focused** - one feature per branch
+- **Run local validation before committing** - prevents CI failures and reduces review cycles
+- **Use pre-commit hooks** - automatically catches issues before they reach GitHub
 - **Clean up after yourself** - remove temporary files and duplicate directories before committing
 
 ### Branch Naming Convention
 - `feature/` - New features (e.g., `feature/go-backend-init`)
 - `fix/` - Bug fixes
 - `docs/` - Documentation updates
+
+### Recommended Daily Workflow
+```bash
+# Start of work session
+git checkout main && git pull origin main
+git checkout -b feature/your-feature
+
+# During development (run frequently)
+make quick-check                    # Fast validation (~2 min)
+./scripts/validate.sh --fix        # Auto-fix issues
+
+# Before committing (choose one approach)
+# Option 1: With pre-commit hooks (recommended)
+git commit -m "feat: your changes"  # Hooks run automatically
+
+# Option 2: Manual validation
+make commit-check                   # Verify ready for commit
+git commit -m "feat: your changes"
+
+# Before pushing (highly recommended)
+make push-check                     # Full CI simulation
+git push -u origin feature/your-feature
+```
 
 ### GitHub Issues Integration
 - Use `gh` command for issue management
@@ -177,13 +209,29 @@ pip install pre-commit
 
 ## Development Notes
 
+### Essential Practices
 - Always work on feature branches, never directly on main
-- **Run `make quick-check` before committing** to catch CI issues locally
+- **Run `make setup` once** to install dev tools and pre-commit hooks
+- **Use local validation workflow** - prevents 90% of CI failures:
+  - `make quick-check` before every commit (~2 min)
+  - `make push-check` before every push (~5-10 min)
+  - `./scripts/validate.sh --fix` to auto-fix common issues
+
+### Code Quality
+- **Pre-commit hooks are your safety net** - install them with `make setup`
+- Generate TypeScript types after modifying Go response structures
+- Test API endpoints before committing using `make integration-test`
+- Format code automatically: `make format`
+
+### Project Management
 - Use GitHub issues to track progress and requirements
 - Update CLAUDE.md files when project structure or workflow changes
-- Test API endpoints before committing
-- Generate TypeScript types after modifying Go response structures
-- **Pre-commit hooks prevent most CI failures** - highly recommended to install
+- Follow conventional commit messages (enforced by pre-commit hooks)
+
+### Time-Saving Tips
+- **`make dev`** - starts both backend and frontend servers
+- **`./scripts/validate.sh --quick --fix`** - fastest validation with auto-fixes
+- **Pre-commit hooks save hours** - they catch issues immediately vs waiting for CI
 
 ## Troubleshooting Common Issues
 
