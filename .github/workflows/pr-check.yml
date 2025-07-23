@@ -1,0 +1,149 @@
+name: PR Check
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  validate-pr:
+    name: Validate Pull Request
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: Check PR title format
+      run: |
+        PR_TITLE="${{ github.event.pull_request.title }}"
+        echo "PR Title: $PR_TITLE"
+        
+        # Check if title follows conventional commit format
+        if echo "$PR_TITLE" | grep -qE "^(feat|fix|docs|style|refactor|test|chore)(\(.+\))?: .+"; then
+          echo "✅ PR title follows conventional commit format"
+        else
+          echo "❌ PR title should follow conventional commit format: type(scope): description"
+          echo "Examples:"
+          echo "  feat: add user authentication"
+          echo "  fix(api): handle null responses" 
+          echo "  docs: update README"
+          exit 1
+        fi
+        
+    - name: Check PR description
+      run: |
+        PR_BODY="${{ github.event.pull_request.body }}"
+        
+        if [ -z "$PR_BODY" ]; then
+          echo "❌ PR description is empty. Please provide a description."
+          exit 1
+        fi
+        
+        if [ ${#PR_BODY} -lt 20 ]; then
+          echo "❌ PR description is too short. Please provide more details."
+          exit 1
+        fi
+        
+        echo "✅ PR description looks good"
+        
+    - name: Check for breaking changes
+      run: |
+        # Check if BREAKING CHANGE is mentioned in PR body or commits
+        if git log --format=%B ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }} | grep -i "BREAKING CHANGE"; then
+          echo "⚠️  Breaking changes detected. Make sure version bump is appropriate."
+        fi
+        
+    - name: Check file changes
+      run: |
+        # Get list of changed files
+        git diff --name-only ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }} > changed_files.txt
+        
+        echo "Changed files:"
+        cat changed_files.txt
+        
+        # Check if both frontend and backend changed
+        if grep -q "^backend/" changed_files.txt && grep -q "^frontend/" changed_files.txt; then
+          echo "✅ Full-stack changes detected"
+        elif grep -q "^backend/" changed_files.txt; then
+          echo "✅ Backend-only changes detected"
+        elif grep -q "^frontend/" changed_files.txt; then
+          echo "✅ Frontend-only changes detected"
+        fi
+        
+        # Check for sensitive files
+        if grep -qE "\.(env|key|pem|p12)$" changed_files.txt; then
+          echo "⚠️  Sensitive files detected. Please review carefully."
+        fi
+        
+    - name: Lint commit messages
+      run: |
+        # Check commit messages in the PR
+        git log --format=%s ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }} > commit_messages.txt
+        
+        echo "Commit messages:"
+        cat commit_messages.txt
+        
+        # Check each commit message
+        while IFS= read -r message; do
+          if echo "$message" | grep -qE "^(feat|fix|docs|style|refactor|test|chore)(\(.+\))?: .+"; then
+            echo "✅ Good commit: $message"
+          else
+            echo "⚠️  Consider improving commit message: $message"
+          fi
+        done < commit_messages.txt
+
+  size-check:
+    name: Check PR Size
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: Check PR size
+      run: |
+        # Count lines changed
+        LINES_ADDED=$(git diff --numstat ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }} | awk '{sum += $1} END {print sum}')
+        LINES_DELETED=$(git diff --numstat ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }} | awk '{sum += $2} END {print sum}')
+        TOTAL_CHANGES=$((LINES_ADDED + LINES_DELETED))
+        
+        echo "Lines added: $LINES_ADDED"
+        echo "Lines deleted: $LINES_DELETED"
+        echo "Total changes: $TOTAL_CHANGES"
+        
+        # Provide feedback based on size
+        if [ $TOTAL_CHANGES -gt 1000 ]; then
+          echo "🔍 Large PR detected ($TOTAL_CHANGES lines). Consider breaking into smaller PRs."
+        elif [ $TOTAL_CHANGES -gt 500 ]; then
+          echo "📏 Medium-sized PR ($TOTAL_CHANGES lines). Looks reasonable."
+        else
+          echo "✅ Small PR ($TOTAL_CHANGES lines). Easy to review!"
+        fi
+
+  dependency-changes:
+    name: Check Dependency Changes  
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: Check Go dependencies
+      run: |
+        if git diff --name-only ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }} | grep -q "backend/go.mod"; then
+          echo "📦 Go dependencies changed"
+          git diff ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }} backend/go.mod
+        fi
+        
+    - name: Check npm dependencies  
+      run: |
+        if git diff --name-only ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }} | grep -q "frontend/package.json"; then
+          echo "📦 NPM dependencies changed"
+          git diff ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }} frontend/package.json
+        fi
