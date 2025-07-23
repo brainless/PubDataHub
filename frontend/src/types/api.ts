@@ -18,5 +18,3 @@ export interface ErrorResponse {
   message: string;
 }
 
-// Explicit exports to ensure module compatibility
-export type { HomeResponse, ErrorResponse };

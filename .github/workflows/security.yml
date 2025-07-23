@@ -1,0 +1,175 @@
+name: Security
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Run security scans daily at 2 AM UTC
+    - cron: '0 2 * * *'
+
+jobs:
+  go-security:
+    name: Go Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.24'
+        
+    - name: Install govulncheck
+      run: go install golang.org/x/vuln/cmd/govulncheck@latest
+      
+    - name: Run govulncheck
+      working-directory: ./backend
+      run: |
+        echo "Running Go vulnerability check..."
+        govulncheck -json ./... > govulncheck-report.json || true
+        echo "Vulnerability check completed"
+        
+    - name: Display govulncheck results
+      working-directory: ./backend
+      run: |
+        echo "Govulncheck Summary:"
+        if [ -f govulncheck-report.json ]; then
+          # Count vulnerabilities
+          vuln_count=$(cat govulncheck-report.json | jq -r 'select(.finding != null) | .finding.trace[0].function' 2>/dev/null | wc -l || echo "0")
+          echo "Vulnerabilities found: $vuln_count"
+          
+          if [ "$vuln_count" -gt 0 ]; then
+            echo "⚠️  Vulnerabilities detected in Go dependencies"
+            cat govulncheck-report.json | jq -r 'select(.finding != null)'
+          else
+            echo "✅ No vulnerabilities found in Go dependencies"
+          fi
+        else
+          echo "✅ No vulnerabilities found"
+        fi
+        
+    - name: Install gosec
+      run: go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest
+      
+    - name: Run gosec security scan  
+      working-directory: ./backend
+      run: |
+        echo "Running gosec security scan..."
+        gosec -fmt json -out gosec-report.json ./... || true
+        echo "Security scan completed"
+        
+    - name: Display gosec results
+      working-directory: ./backend
+      run: |
+        echo "Gosec Security Summary:"
+        if [ -f gosec-report.json ]; then
+          issues=$(cat gosec-report.json | jq -r '.Issues | length' 2>/dev/null || echo "0")
+          echo "Security issues found: $issues"
+          
+          if [ "$issues" -gt 0 ]; then
+            echo "⚠️  Security issues detected:"
+            cat gosec-report.json | jq -r '.Issues[] | "- \(.severity): \(.details) in \(.file):\(.line)"'
+          else
+            echo "✅ No security issues found"
+          fi
+        else
+          echo "✅ No security issues found"
+        fi
+
+  npm-security:
+    name: NPM Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+        
+    - name: Install dependencies
+      working-directory: ./frontend
+      run: npm ci
+      
+    - name: Run npm audit
+      working-directory: ./frontend
+      run: |
+        npm audit --audit-level=moderate
+        
+    - name: Run npm audit fix
+      working-directory: ./frontend
+      run: |
+        npm audit fix --dry-run
+        
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Dependency Review
+      uses: actions/dependency-review-action@v4
+      with:
+        fail-on-severity: moderate
+        
+  codeql-analysis:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+      
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [ 'go', 'javascript' ]
+        
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v3
+      with:
+        languages: ${{ matrix.language }}
+        
+    - name: Set up Go (for Go analysis)
+      if: matrix.language == 'go'
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.24'
+        
+    - name: Build Go code (for CodeQL)
+      if: matrix.language == 'go'
+      working-directory: ./backend
+      run: go build ./...
+      
+    - name: Set up Node.js (for JavaScript analysis)
+      if: matrix.language == 'javascript'
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+        
+    - name: Install frontend dependencies (for JavaScript analysis)
+      if: matrix.language == 'javascript'
+      working-directory: ./frontend
+      run: npm ci
+      
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
+      with:
+        category: "/language:${{matrix.language}}"
