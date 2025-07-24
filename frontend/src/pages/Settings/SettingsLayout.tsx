@@ -8,7 +8,7 @@ export function SettingsLayout() {
       <div>
         <h1 className="text-2xl font-bold">Settings</h1>
         <p className="text-muted-foreground">
-          Configure your PubDataHub preferences and settings.
+          Configure your PubDataHub preferences and application settings.
         </p>
       </div>
       
