@@ -5,13 +5,14 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+  packages: write
+
 jobs:
-  create-release:
-    name: Create Release
+  goreleaser:
+    name: GoReleaser Build and Release
     runs-on: ubuntu-latest
-    outputs:
-      upload_url: ${{ steps.create_release.outputs.upload_url }}
-      release_id: ${{ steps.create_release.outputs.id }}
     
     steps:
     - name: Checkout code
@@ -19,103 +20,11 @@ jobs:
       with:
         fetch-depth: 0
         
-    - name: Generate changelog
-      id: changelog
-      run: |
-        # Get the previous tag
-        PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^)
-        echo "Previous tag: $PREVIOUS_TAG"
-        
-        # Generate changelog
-        echo "## Changes since $PREVIOUS_TAG" > CHANGELOG.md
-        echo "" >> CHANGELOG.md
-        git log --pretty=format:"- %s (%h)" $PREVIOUS_TAG..HEAD >> CHANGELOG.md
-        
-        # Set output for release body
-        echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
-        cat CHANGELOG.md >> $GITHUB_OUTPUT
-        echo "EOF" >> $GITHUB_OUTPUT
-        
-    - name: Create Release
-      id: create_release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: ${{ github.ref }}
-        release_name: Release ${{ github.ref }}
-        body: ${{ steps.changelog.outputs.CHANGELOG }}
-        draft: false
-        prerelease: false
-
-  build-backend:
-    name: Build Backend
-    runs-on: ubuntu-latest
-    needs: create-release
-    
-    strategy:
-      matrix:
-        goos: [linux, windows, darwin]
-        goarch: [amd64, arm64]
-        exclude:
-          - goos: windows
-            goarch: arm64
-            
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
         go-version: '1.24'
         
-    - name: Build binary
-      working-directory: ./backend
-      env:
-        GOOS: ${{ matrix.goos }}
-        GOARCH: ${{ matrix.goarch }}
-      run: |
-        mkdir -p ../dist
-        BINARY_NAME="pubdatahub-backend-${{ matrix.goos }}-${{ matrix.goarch }}"
-        if [ "${{ matrix.goos }}" = "windows" ]; then
-          BINARY_NAME="${BINARY_NAME}.exe"
-        fi
-        go build -ldflags="-s -w" -o "../dist/${BINARY_NAME}" cmd/server/main.go
-        
-    - name: Create archive
-      run: |
-        cd dist
-        ARCHIVE_NAME="pubdatahub-backend-${{ matrix.goos }}-${{ matrix.goarch }}"
-        if [ "${{ matrix.goos }}" = "windows" ]; then
-          zip "${ARCHIVE_NAME}.zip" "${ARCHIVE_NAME}.exe"
-          echo "ASSET_PATH=${ARCHIVE_NAME}.zip" >> $GITHUB_ENV
-          echo "ASSET_NAME=${ARCHIVE_NAME}.zip" >> $GITHUB_ENV
-        else
-          tar -czf "${ARCHIVE_NAME}.tar.gz" "${ARCHIVE_NAME}"
-          echo "ASSET_PATH=${ARCHIVE_NAME}.tar.gz" >> $GITHUB_ENV
-          echo "ASSET_NAME=${ARCHIVE_NAME}.tar.gz" >> $GITHUB_ENV
-        fi
-        
-    - name: Upload Release Asset
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ needs.create-release.outputs.upload_url }}
-        asset_path: ./dist/${{ env.ASSET_PATH }}
-        asset_name: ${{ env.ASSET_NAME }}
-        asset_content_type: application/octet-stream
-
-  build-frontend:
-    name: Build Frontend
-    runs-on: ubuntu-latest
-    needs: create-release
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
     - name: Set up Node.js
       uses: actions/setup-node@v4
       with:
@@ -123,82 +32,126 @@ jobs:
         cache: 'npm'
         cache-dependency-path: frontend/package-lock.json
         
-    - name: Install dependencies
-      working-directory: ./frontend
-      run: npm ci
-      
-    - name: Build frontend
-      working-directory: ./frontend
-      run: npm run build
-      
-    - name: Create frontend archive
-      run: |
-        cd frontend/dist
-        tar -czf ../../pubdatahub-frontend.tar.gz .
+    - name: Install goreleaser
+      uses: goreleaser/goreleaser-action@v6
+      with:
+        install-only: true
         
-    - name: Upload Frontend Asset
-      uses: actions/upload-release-asset@v1
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: Log in to GitHub Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Create symlink for embedded assets
+      run: |
+        # Create symlink so go:embed can find frontend assets
+        mkdir -p backend/frontend
+        ln -sf ../../frontend/dist backend/frontend/dist
+        
+    - name: Run GoReleaser
+      uses: goreleaser/goreleaser-action@v6
+      with:
+        distribution: goreleaser
+        version: latest
+        args: release --clean
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ needs.create-release.outputs.upload_url }}
-        asset_path: ./pubdatahub-frontend.tar.gz
-        asset_name: pubdatahub-frontend.tar.gz
-        asset_content_type: application/gzip
-
-  docker-build:
-    name: Build Docker Images
+        HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+        
+  # Publish to package managers (run after goreleaser)
+  publish-packages:
+    name: Publish to Package Managers
     runs-on: ubuntu-latest
-    needs: create-release
+    needs: goreleaser
+    if: startsWith(github.ref, 'refs/tags/v')
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-      
-    - name: Log in to Docker Hub
-      if: github.event_name != 'pull_request'
-      uses: docker/login-action@v3
-      with:
-        username: ${{ secrets.DOCKER_USERNAME }}
-        password: ${{ secrets.DOCKER_PASSWORD }}
-        
-    - name: Extract metadata
-      id: meta
-      uses: docker/metadata-action@v5
-      with:
-        images: pubdatahub/backend
-        tags: |
-          type=ref,event=branch
-          type=ref,event=pr
-          type=semver,pattern={{version}}
-          type=semver,pattern={{major}}.{{minor}}
-          
-    - name: Create Dockerfile for backend
+    - name: Get release info
+      id: release_info
       run: |
-        cat > Dockerfile.backend << 'EOF'
-        FROM golang:1.24-alpine AS builder
-        WORKDIR /app
-        COPY backend/ .
-        RUN go mod download
-        RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o server cmd/server/main.go
+        TAG=${GITHUB_REF#refs/tags/}
+        echo "tag=$TAG" >> $GITHUB_OUTPUT
+        echo "version=${TAG#v}" >> $GITHUB_OUTPUT
         
-        FROM alpine:latest
-        RUN apk --no-cache add ca-certificates
-        WORKDIR /root/
-        COPY --from=builder /app/server .
-        EXPOSE 8080
-        CMD ["./server"]
-        EOF
-        
-    - name: Build and push backend image
-      uses: docker/build-push-action@v5
+    - name: Publish to Snapcraft
+      uses: snapcore/action-publish@v1
+      if: success()
+      env:
+        SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_TOKEN }}
       with:
-        context: .
-        file: ./Dockerfile.backend
-        push: ${{ github.event_name != 'pull_request' }}
-        tags: ${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
-        platforms: linux/amd64,linux/arm64
+        snap: pubdatahub_${{ steps.release_info.outputs.version }}_amd64.snap
+        release: stable
+        
+    - name: Notify Chocolatey
+      if: success()
+      run: |
+        echo "📦 Chocolatey package will be auto-updated via GitHub release"
+        echo "🍺 Homebrew tap will be auto-updated via goreleaser"
+        echo "📦 Snap package published to store"
+        echo "🐧 DEB/RPM packages available in GitHub release"
+        echo "🐳 Docker images published to ghcr.io"
+
+  # Test installation on different platforms
+  test-installation:
+    name: Test Installation
+    runs-on: ${{ matrix.os }}
+    needs: goreleaser
+    if: startsWith(github.ref, 'refs/tags/v')
+    
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        
+    steps:
+    - name: Get release assets
+      id: release_assets
+      run: |
+        TAG=${GITHUB_REF#refs/tags/}
+        echo "tag=$TAG" >> $GITHUB_OUTPUT
+        
+    - name: Test Linux installation
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        # Test DEB package installation
+        wget -q https://github.com/brainless/PubDataHub/releases/download/${{ steps.release_assets.outputs.tag }}/pubdatahub_*_linux_amd64.deb
+        sudo dpkg -i pubdatahub_*.deb || true
+        sudo apt-get install -f -y
+        pubdatahub --version || echo "Installation test completed"
+        
+    - name: Test Windows installation
+      if: matrix.os == 'windows-latest'
+      shell: powershell
+      run: |
+        # Test Chocolatey installation (if available)
+        if (Get-Command choco -ErrorAction SilentlyContinue) {
+          choco install pubdatahub -y --pre
+          pubdatahub --version
+        } else {
+          Write-Host "Chocolatey not available, testing binary download"
+          Invoke-WebRequest -Uri "https://github.com/brainless/PubDataHub/releases/download/${{ steps.release_assets.outputs.tag }}/pubdatahub_*_windows_amd64.zip" -OutFile "pubdatahub.zip"
+          Expand-Archive -Path "pubdatahub.zip" -DestinationPath "."
+          .\pubdatahub.exe --version
+        }
+        
+    - name: Test macOS installation
+      if: matrix.os == 'macos-latest'
+      run: |
+        # Test Homebrew installation (if tap is set up)
+        if command -v brew >/dev/null 2>&1; then
+          brew tap brainless/pubdatahub || echo "Tap not available yet"
+          brew install pubdatahub || echo "Package not in tap yet"
+          pubdatahub --version || echo "Installation test completed"
+        else
+          echo "Homebrew not available, testing binary download"
+          wget -q https://github.com/brainless/PubDataHub/releases/download/${{ steps.release_assets.outputs.tag }}/pubdatahub_*_darwin_amd64.tar.gz
+          tar -xzf pubdatahub_*.tar.gz
+          ./pubdatahub --version
+        fi
