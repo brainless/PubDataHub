@@ -1,16 +1,39 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/brainless/PubDataHub/internal/config"
+	"github.com/brainless/PubDataHub/internal/datasource"
+	"github.com/brainless/PubDataHub/internal/datasource/hackernews"
 	"github.com/brainless/PubDataHub/internal/log"
 	"github.com/spf13/cobra"
 )
 
 var version = "dev"
 var verbose bool
+
+// getDataSource creates and initializes a data source by name
+func getDataSource(name string, batchSize int) (datasource.DataSource, error) {
+	var ds datasource.DataSource
+
+	switch name {
+	case "hackernews":
+		ds = hackernews.NewHackerNewsDataSource(batchSize)
+	default:
+		return nil, fmt.Errorf("unknown data source: %s", name)
+	}
+
+	// Initialize storage
+	if err := ds.InitializeStorage(config.AppConfig.StoragePath); err != nil {
+		return nil, fmt.Errorf("failed to initialize storage for %s: %w", name, err)
+	}
+
+	return ds, nil
+}
 
 func main() {
 	if err := newRootCmd().Execute(); err != nil {
@@ -135,7 +158,7 @@ func newSourcesCmd() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			log.Logger.Info("Available data sources:")
 			log.Logger.Info("- hackernews: Hacker News stories, comments, and users")
-			log.Logger.Info("  Status: Available (implementation coming in future phases)")
+			log.Logger.Info("  Status: Ready for download")
 			log.Logger.Info("")
 			log.Logger.Info("Future data sources:")
 			log.Logger.Info("- reddit: Reddit posts and comments")
@@ -149,8 +172,31 @@ func newSourcesCmd() *cobra.Command {
 		Short: "Show status of specific data source",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			log.Logger.Infof("Status for data source '%s':", args[0])
-			log.Logger.Info("(Implementation coming in future phases)")
+			sourceName := args[0]
+			log.Logger.Infof("Status for data source '%s':", sourceName)
+
+			ds, err := getDataSource(sourceName, 100)
+			if err != nil {
+				log.Logger.Errorf("Error: %v", err)
+				return
+			}
+			defer func() {
+				if closer, ok := ds.(interface{ Close() error }); ok {
+					closer.Close()
+				}
+			}()
+
+			status := ds.GetDownloadStatus()
+			log.Logger.Infof("  Active: %t", status.IsActive)
+			log.Logger.Infof("  Status: %s", status.Status)
+			log.Logger.Infof("  Progress: %.1f%%", status.Progress*100)
+			log.Logger.Infof("  Total Items: %d", status.ItemsTotal)
+			log.Logger.Infof("  Cached Items: %d", status.ItemsCached)
+			log.Logger.Infof("  Last Update: %s", status.LastUpdate.Format(time.RFC3339))
+
+			if status.ErrorMessage != "" {
+				log.Logger.Errorf("  Error: %s", status.ErrorMessage)
+			}
 		},
 	}
 
@@ -160,15 +206,38 @@ func newSourcesCmd() *cobra.Command {
 		Short: "Start download for data source",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
+			sourceName := args[0]
 			resume, _ := cmd.Flags().GetBool("resume")
 			batchSize, _ := cmd.Flags().GetInt("batch-size")
 
-			log.Logger.Infof("Starting download for data source '%s'", args[0])
+			log.Logger.Infof("Starting download for data source '%s'", sourceName)
+			log.Logger.Infof("Batch size: %d", batchSize)
+
+			ds, err := getDataSource(sourceName, batchSize)
+			if err != nil {
+				log.Logger.Errorf("Error: %v", err)
+				return
+			}
+			defer func() {
+				if closer, ok := ds.(interface{ Close() error }); ok {
+					closer.Close()
+				}
+			}()
+
+			ctx := context.Background()
+
 			if resume {
 				log.Logger.Info("Resume mode enabled")
+				err = ds.ResumeDownload(ctx)
+			} else {
+				err = ds.StartDownload(ctx)
 			}
-			log.Logger.Infof("Batch size: %d", batchSize)
-			log.Logger.Info("(Implementation coming in future phases)")
+
+			if err != nil {
+				log.Logger.Errorf("Download failed: %v", err)
+			} else {
+				log.Logger.Info("Download completed successfully")
+			}
 		},
 	}
 	downloadCmd.Flags().Bool("resume", false, "Resume interrupted download")
@@ -180,8 +249,36 @@ func newSourcesCmd() *cobra.Command {
 		Short: "Show download progress",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			log.Logger.Infof("Download progress for '%s':", args[0])
-			log.Logger.Info("(Implementation coming in future phases)")
+			sourceName := args[0]
+			log.Logger.Infof("Download progress for '%s':", sourceName)
+
+			ds, err := getDataSource(sourceName, 100)
+			if err != nil {
+				log.Logger.Errorf("Error: %v", err)
+				return
+			}
+			defer func() {
+				if closer, ok := ds.(interface{ Close() error }); ok {
+					closer.Close()
+				}
+			}()
+
+			status := ds.GetDownloadStatus()
+
+			if status.ItemsTotal > 0 {
+				percentage := status.Progress * 100
+				log.Logger.Infof("  Progress: %.1f%% (%d/%d items)", percentage, status.ItemsCached, status.ItemsTotal)
+			} else {
+				log.Logger.Info("  Progress: No data downloaded yet")
+			}
+
+			log.Logger.Infof("  Status: %s", status.Status)
+			log.Logger.Infof("  Active: %t", status.IsActive)
+			log.Logger.Infof("  Last Update: %s", status.LastUpdate.Format("2006-01-02 15:04:05"))
+
+			if status.ErrorMessage != "" {
+				log.Logger.Errorf("  Last Error: %s", status.ErrorMessage)
+			}
 		},
 	}
 
@@ -196,13 +293,14 @@ func newQueryCmd() *cobra.Command {
 		Long:  "Execute SQL queries against downloaded data from various sources.",
 		Args:  cobra.MinimumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
+			sourceName := args[0]
 			interactive, _ := cmd.Flags().GetBool("interactive")
 			output, _ := cmd.Flags().GetString("output")
 			file, _ := cmd.Flags().GetString("file")
 
 			if interactive {
-				log.Logger.Infof("Starting interactive query mode for '%s'", args[0])
-				log.Logger.Info("(Implementation coming in future phases)")
+				log.Logger.Infof("Starting interactive query mode for '%s'", sourceName)
+				log.Logger.Info("(Interactive mode implementation coming in future phases)")
 				return
 			}
 
@@ -212,13 +310,76 @@ func newQueryCmd() *cobra.Command {
 				return
 			}
 
-			log.Logger.Infof("Executing query on '%s':", args[0])
-			log.Logger.Infof("Query: %s", args[1])
-			log.Logger.Infof("Output format: %s", output)
-			if file != "" {
-				log.Logger.Infof("Output file: %s", file)
+			query := args[1]
+			log.Logger.Infof("Executing query on '%s':", sourceName)
+			log.Logger.Infof("Query: %s", query)
+
+			ds, err := getDataSource(sourceName, 100)
+			if err != nil {
+				log.Logger.Errorf("Error: %v", err)
+				return
 			}
-			log.Logger.Info("(Implementation coming in future phases)")
+			defer func() {
+				if closer, ok := ds.(interface{ Close() error }); ok {
+					closer.Close()
+				}
+			}()
+
+			result, err := ds.Query(query)
+			if err != nil {
+				log.Logger.Errorf("Query failed: %v", err)
+				return
+			}
+
+			log.Logger.Infof("Query completed in %v", result.Duration)
+			log.Logger.Infof("Found %d rows", result.Count)
+
+			// For now, just display basic table format
+			if len(result.Rows) > 0 {
+				// Print column headers
+				for i, col := range result.Columns {
+					if i > 0 {
+						fmt.Printf("\t")
+					}
+					fmt.Printf("%s", col)
+				}
+				fmt.Println()
+
+				// Print separator
+				for i := range result.Columns {
+					if i > 0 {
+						fmt.Printf("\t")
+					}
+					fmt.Printf("---")
+				}
+				fmt.Println()
+
+				// Print rows (limit to first 20 for readability)
+				limit := result.Count
+				if limit > 20 {
+					limit = 20
+				}
+
+				for i := 0; i < limit; i++ {
+					row := result.Rows[i]
+					for j, val := range row {
+						if j > 0 {
+							fmt.Printf("\t")
+						}
+						fmt.Printf("%v", val)
+					}
+					fmt.Println()
+				}
+
+				if result.Count > 20 {
+					log.Logger.Infof("... and %d more rows", result.Count-20)
+				}
+			}
+
+			// TODO: Implement file output and other formats
+			if file != "" || output != "table" {
+				log.Logger.Info("File output and other formats coming in future phases")
+			}
 		},
 	}
 
