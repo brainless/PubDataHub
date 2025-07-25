@@ -180,7 +180,12 @@ func (v *Validator) ValidatePath(path string) (*types.PathValidationResponse, er
 		return response, nil
 	}
 
-	// Check if path exists
+	// Check if path exists (double-check sanitization)
+	if err := v.validateSanitizedPath(sanitizedPath); err != nil {
+		response.Issues = append(response.Issues, fmt.Sprintf("Path validation failed: %v", err))
+		return response, nil
+	}
+
 	info, err := os.Stat(sanitizedPath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -349,6 +354,26 @@ func (v *Validator) checkWritable(dirPath string) (bool, error) {
 	}
 
 	return true, nil
+}
+
+// validateSanitizedPath performs additional validation on an already sanitized path
+func (v *Validator) validateSanitizedPath(path string) error {
+	// Ensure path is absolute and doesn't contain dangerous patterns
+	if !filepath.IsAbs(path) {
+		return fmt.Errorf("path must be absolute")
+	}
+
+	// Double-check for path traversal attempts
+	if strings.Contains(path, "..") {
+		return fmt.Errorf("path contains invalid traversal patterns")
+	}
+
+	// Ensure path doesn't exceed reasonable length
+	if len(path) > 4096 {
+		return fmt.Errorf("path too long")
+	}
+
+	return nil
 }
 
 // Helper functions
