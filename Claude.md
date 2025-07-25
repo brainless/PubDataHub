@@ -6,6 +6,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 PubDataHub is a command-line application written in Go that enables users to download and query data from various public data sources. The application follows a modular architecture to support multiple data sources with different storage and querying mechanisms.
 
+## Development Workflow
+- Create a new branch for each task
+- Branch names should start with chore/ or feature/ or fix/
+- Please add tests for any new features added, particularly integration tests
+- Please run formatters, linters and tests before committing changes
+- When finished please commit and push to the new branch
+- Please mention GitHub issue if provided
+- After working on an issue from GitHub, update issue's tasks and open PR
+
 ## Project Status
 
 **Current Phase**: Core Infrastructure Development
@@ -76,14 +85,10 @@ PubDataHub/
 
 ## Development Notes
 
-### Essential Practices
-- Always work on feature branches, never directly on main
+### Code Quality
 - Follow Go conventions and standard project layout
-- Write tests for new functionality
 - Use proper error handling and logging
 - Implement graceful shutdown for long-running operations
-
-### Code Quality
 - Run `go fmt` before committing
 - Use `go vet` to catch common errors
 - Add appropriate logging for debugging
@@ -103,9 +108,3 @@ PubDataHub/
 - **Phase 2**: Hacker News data source implementation
 - **Phase 3**: Enhanced features (resume/pause, exports)
 - **Phase 4**: Optimization and additional data sources
-
-### Development Best Practices
-- Always add tests when possible, particularly integration tests when adding new features
-
-## GitHub Issue Workflow
-- After working on an issue from GitHub, update issue's tasks and open PR
