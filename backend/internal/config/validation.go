@@ -167,22 +167,21 @@ func (v *Validator) ValidatePath(path string) (*types.PathValidationResponse, er
 		Warnings: []string{},
 	}
 
-	// Clean the path
-	cleanPath := filepath.Clean(path)
-
 	// Basic validation checks
 	if strings.TrimSpace(path) == "" {
 		response.Issues = append(response.Issues, "Path cannot be empty")
 		return response, nil
 	}
 
-	// Check for dangerous patterns
-	if strings.Contains(path, "..") {
-		response.Issues = append(response.Issues, "Path cannot contain relative directories (..)")
+	// Sanitize and validate the path for security
+	sanitizedPath, err := v.sanitizePath(path)
+	if err != nil {
+		response.Issues = append(response.Issues, fmt.Sprintf("Invalid path: %v", err))
+		return response, nil
 	}
 
 	// Check if path exists
-	info, err := os.Stat(cleanPath)
+	info, err := os.Stat(sanitizedPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			response.Exists = false
@@ -204,25 +203,24 @@ func (v *Validator) ValidatePath(path string) (*types.PathValidationResponse, er
 
 	response.IsDirectory = true
 
-	// Check if writable
-	testFile := filepath.Join(cleanPath, ".pubdatahub_write_test")
-	file, err := os.Create(testFile)
-	if err != nil {
+	// Check if writable with secure temp file creation
+	if writable, writeErr := v.checkWritable(sanitizedPath); writeErr != nil {
 		response.IsWritable = false
-		response.Issues = append(response.Issues, "Directory is not writable")
+		response.Issues = append(response.Issues, fmt.Sprintf("Cannot test write permissions: %v", writeErr))
 	} else {
-		response.IsWritable = true
-		file.Close()
-		os.Remove(testFile) // Clean up test file
+		response.IsWritable = writable
+		if !writable {
+			response.Issues = append(response.Issues, "Directory is not writable")
+		}
 	}
 
 	// Get free space information
-	if freeSpace := v.getFreeSpace(cleanPath); freeSpace != "" {
+	if freeSpace := v.getFreeSpace(sanitizedPath); freeSpace != "" {
 		response.FreeSpace = freeSpace
 	}
 
 	// Add warnings for common issues
-	if strings.HasPrefix(cleanPath, "/tmp") || strings.HasPrefix(cleanPath, "/temp") {
+	if strings.HasPrefix(sanitizedPath, "/tmp") || strings.HasPrefix(sanitizedPath, "/temp") {
 		response.Warnings = append(response.Warnings, "Temporary directories may not persist between system restarts")
 	}
 
@@ -245,18 +243,24 @@ func (v *Validator) ValidatePath(path string) (*types.PathValidationResponse, er
 func (v *Validator) GetStorageStats(path string) (*types.StorageStats, error) {
 	stats := &types.StorageStats{}
 
+	// Sanitize path for security
+	sanitizedPath, err := v.sanitizePath(path)
+	if err != nil {
+		return stats, fmt.Errorf("invalid path: %w", err)
+	}
+
 	// Check if path exists
-	if _, err := os.Stat(path); os.IsNotExist(err) {
+	if _, err := os.Stat(sanitizedPath); os.IsNotExist(err) {
 		return stats, nil // Return empty stats if path doesn't exist
 	}
 
 	// Get free space
-	if freeSpace := v.getFreeSpace(path); freeSpace != "" {
+	if freeSpace := v.getFreeSpace(sanitizedPath); freeSpace != "" {
 		stats.FreeSpace = freeSpace
 	}
 
 	// Count datasets (subdirectories)
-	entries, err := os.ReadDir(path)
+	entries, err := os.ReadDir(sanitizedPath)
 	if err == nil {
 		for _, entry := range entries {
 			if entry.IsDir() {
@@ -266,16 +270,85 @@ func (v *Validator) GetStorageStats(path string) (*types.StorageStats, error) {
 	}
 
 	// Calculate used space (simplified)
-	if usedSpace := v.getUsedSpace(path); usedSpace != "" {
+	if usedSpace := v.getUsedSpace(sanitizedPath); usedSpace != "" {
 		stats.UsedSpace = usedSpace
 	}
 
 	// Find oldest download (simplified)
-	if oldest := v.getOldestDownload(path); oldest != "" {
+	if oldest := v.getOldestDownload(sanitizedPath); oldest != "" {
 		stats.OldestDownload = oldest
 	}
 
 	return stats, nil
+}
+
+// Security helper functions
+
+// sanitizePath sanitizes and validates a file path to prevent path traversal attacks
+func (v *Validator) sanitizePath(path string) (string, error) {
+	if strings.TrimSpace(path) == "" {
+		return "", fmt.Errorf("path cannot be empty")
+	}
+
+	// Clean the path to resolve any . and .. elements
+	cleanPath := filepath.Clean(path)
+
+	// Check for dangerous path traversal patterns
+	if strings.Contains(cleanPath, "..") {
+		return "", fmt.Errorf("path cannot contain relative directories (..)")
+	}
+
+	// Ensure the path is absolute to prevent relative path issues
+	if !filepath.IsAbs(cleanPath) {
+		// Convert to absolute path for validation
+		absPath, err := filepath.Abs(cleanPath)
+		if err != nil {
+			return "", fmt.Errorf("cannot resolve absolute path: %w", err)
+		}
+		cleanPath = absPath
+	}
+
+	// Additional security checks for dangerous paths
+	dangerousPaths := []string{
+		"/etc", "/bin", "/sbin", "/usr/bin", "/usr/sbin",
+		"/boot", "/sys", "/proc", "/dev", "/root",
+	}
+
+	for _, dangerous := range dangerousPaths {
+		if strings.HasPrefix(cleanPath, dangerous) {
+			return "", fmt.Errorf("access to system directory %s is not allowed", dangerous)
+		}
+	}
+
+	return cleanPath, nil
+}
+
+// checkWritable safely checks if a directory is writable
+func (v *Validator) checkWritable(dirPath string) (bool, error) {
+	// Use a random filename to avoid conflicts
+	testFileName := fmt.Sprintf(".pubdatahub_write_test_%d", os.Getpid())
+	testFile := filepath.Join(dirPath, testFileName)
+
+	// Ensure the test file path is still safe
+	if !strings.HasPrefix(testFile, dirPath) {
+		return false, fmt.Errorf("test file path validation failed")
+	}
+
+	// Try to create and immediately remove a test file
+	file, err := os.Create(testFile)
+	if err != nil {
+		return false, nil // Directory is not writable, but this is not an error
+	}
+
+	// Close and remove the test file
+	file.Close()
+	removeErr := os.Remove(testFile)
+	if removeErr != nil {
+		// Log this but don't fail the check
+		return true, fmt.Errorf("created test file but failed to clean up: %w", removeErr)
+	}
+
+	return true, nil
 }
 
 // Helper functions
