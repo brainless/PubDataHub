@@ -72,7 +72,29 @@ func (h *HackerNewsDataSource) GetDownloadStatus() datasource.DownloadStatus {
 			ErrorMessage: "Storage not initialized",
 		}
 	}
-	return h.downloader.GetDownloadStatus()
+	
+	status := h.downloader.GetDownloadStatus()
+	
+	// If not currently downloading, update ItemsTotal from API
+	if !status.IsActive && status.ItemsTotal == 0 {
+		if maxID, err := h.client.GetMaxItemID(context.Background()); err == nil {
+			status.ItemsTotal = maxID
+			
+			// Also get current cached count from storage
+			if result, err := h.storage.Query("SELECT COUNT(*) FROM items"); err == nil && len(result.Rows) > 0 {
+				if count, ok := result.Rows[0][0].(int64); ok {
+					status.ItemsCached = count
+				}
+			}
+			
+			// Calculate progress if we have both values
+			if status.ItemsTotal > 0 && status.ItemsCached > 0 {
+				status.Progress = float64(status.ItemsCached) / float64(status.ItemsTotal)
+			}
+		}
+	}
+	
+	return status
 }
 
 // StartDownload starts downloading data from the source
