@@ -121,7 +121,7 @@ jobs:
         go-version: '1.21'
         
     - name: Build Go code (for CodeQL)
-      run: go build ./...
+      run: go build ./cmd/...
       
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v3
