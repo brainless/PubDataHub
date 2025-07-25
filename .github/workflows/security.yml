@@ -21,20 +21,18 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.24'
+        go-version: '1.21'
         
     - name: Install govulncheck
       run: go install golang.org/x/vuln/cmd/govulncheck@latest
       
     - name: Run govulncheck
-      working-directory: ./backend
       run: |
         echo "Running Go vulnerability check..."
         govulncheck -json ./... > govulncheck-report.json || true
         echo "Vulnerability check completed"
         
     - name: Display govulncheck results
-      working-directory: ./backend
       run: |
         echo "Govulncheck Summary:"
         if [ -f govulncheck-report.json ]; then
@@ -55,12 +53,10 @@ jobs:
     - name: Install gosec
       run: |
         echo "Installing gosec..."
-        go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest || \
-        go install github.com/cosmtrek/air@latest && echo "⚠️  gosec installation failed, skipping gosec scan"
+        go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest
       continue-on-error: true
       
     - name: Run gosec security scan  
-      working-directory: ./backend
       run: |
         echo "Running gosec security scan..."
         if command -v gosec >/dev/null 2>&1; then
@@ -72,7 +68,6 @@ jobs:
         fi
         
     - name: Display gosec results
-      working-directory: ./backend
       run: |
         echo "Gosec Security Summary:"
         if [ -f gosec-report.json ]; then
@@ -89,35 +84,6 @@ jobs:
           echo "✅ No security issues found"
         fi
 
-  npm-security:
-    name: NPM Security Scan
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-        cache: 'npm'
-        cache-dependency-path: frontend/package-lock.json
-        
-    - name: Install dependencies
-      working-directory: ./frontend
-      run: npm ci
-      
-    - name: Run npm audit
-      working-directory: ./frontend
-      run: |
-        npm audit --audit-level=moderate
-        
-    - name: Run npm audit fix
-      working-directory: ./frontend
-      run: |
-        npm audit fix --dry-run
-        
   dependency-review:
     name: Dependency Review
     runs-on: ubuntu-latest
@@ -140,11 +106,6 @@ jobs:
       contents: read
       security-events: write
       
-    strategy:
-      fail-fast: false
-      matrix:
-        language: [ 'go', 'javascript' ]
-        
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -152,33 +113,17 @@ jobs:
     - name: Initialize CodeQL
       uses: github/codeql-action/init@v3
       with:
-        languages: ${{ matrix.language }}
+        languages: go
         
-    - name: Set up Go (for Go analysis)
-      if: matrix.language == 'go'
+    - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.24'
+        go-version: '1.21'
         
     - name: Build Go code (for CodeQL)
-      if: matrix.language == 'go'
-      working-directory: ./backend
-      run: go build ./...
-      
-    - name: Set up Node.js (for JavaScript analysis)
-      if: matrix.language == 'javascript'
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-        cache: 'npm'
-        cache-dependency-path: frontend/package-lock.json
-        
-    - name: Install frontend dependencies (for JavaScript analysis)
-      if: matrix.language == 'javascript'
-      working-directory: ./frontend
-      run: npm ci
+      run: go build -o pubdatahub ./cmd/main.go
       
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v3
       with:
-        category: "/language:${{matrix.language}}"
+        category: "/language:go"

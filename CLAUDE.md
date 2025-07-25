@@ -106,3 +106,6 @@ PubDataHub/
 
 ### Development Best Practices
 - Always add tests when possible, particularly integration tests when adding new features
+
+## GitHub Issue Workflow
+- After working on an issue from GitHub, update issue's tasks and open PR

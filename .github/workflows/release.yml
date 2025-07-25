@@ -23,14 +23,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.24'
-        
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-        cache: 'npm'
-        cache-dependency-path: frontend/package-lock.json
+        go-version: '1.21'
         
     - name: Install goreleaser
       uses: goreleaser/goreleaser-action@v6
@@ -46,12 +39,6 @@ jobs:
         registry: ghcr.io
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
-        
-    - name: Create symlink for embedded assets
-      run: |
-        # Create symlink so go:embed can find frontend assets
-        mkdir -p backend/frontend
-        ln -sf ../../frontend/dist backend/frontend/dist
         
     - name: Run GoReleaser
       uses: goreleaser/goreleaser-action@v6
@@ -90,7 +77,7 @@ jobs:
         snap: pubdatahub_${{ steps.release_info.outputs.version }}_amd64.snap
         release: stable
         
-    - name: Notify Chocolatey
+    - name: Notify package managers
       if: success()
       run: |
         echo "📦 Chocolatey package will be auto-updated via GitHub release"
@@ -130,28 +117,17 @@ jobs:
       if: matrix.os == 'windows-latest'
       shell: powershell
       run: |
-        # Test Chocolatey installation (if available)
-        if (Get-Command choco -ErrorAction SilentlyContinue) {
-          choco install pubdatahub -y --pre
-          pubdatahub --version
-        } else {
-          Write-Host "Chocolatey not available, testing binary download"
-          Invoke-WebRequest -Uri "https://github.com/brainless/PubDataHub/releases/download/${{ steps.release_assets.outputs.tag }}/pubdatahub_*_windows_amd64.zip" -OutFile "pubdatahub.zip"
-          Expand-Archive -Path "pubdatahub.zip" -DestinationPath "."
-          .\pubdatahub.exe --version
-        }
+        # Test binary download
+        Write-Host "Testing binary download"
+        Invoke-WebRequest -Uri "https://github.com/brainless/PubDataHub/releases/download/${{ steps.release_assets.outputs.tag }}/pubdatahub_*_windows_amd64.zip" -OutFile "pubdatahub.zip"
+        Expand-Archive -Path "pubdatahub.zip" -DestinationPath "."
+        .\pubdatahub.exe --version
         
     - name: Test macOS installation
       if: matrix.os == 'macos-latest'
       run: |
-        # Test Homebrew installation (if tap is set up)
-        if command -v brew >/dev/null 2>&1; then
-          brew tap brainless/pubdatahub || echo "Tap not available yet"
-          brew install pubdatahub || echo "Package not in tap yet"
-          pubdatahub --version || echo "Installation test completed"
-        else
-          echo "Homebrew not available, testing binary download"
-          wget -q https://github.com/brainless/PubDataHub/releases/download/${{ steps.release_assets.outputs.tag }}/pubdatahub_*_darwin_amd64.tar.gz
-          tar -xzf pubdatahub_*.tar.gz
-          ./pubdatahub --version
-        fi
+        # Test binary download
+        echo "Testing binary download"
+        wget -q https://github.com/brainless/PubDataHub/releases/download/${{ steps.release_assets.outputs.tag }}/pubdatahub_*_darwin_amd64.tar.gz
+        tar -xzf pubdatahub_*.tar.gz
+        ./pubdatahub --version

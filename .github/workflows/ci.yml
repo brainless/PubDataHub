@@ -7,8 +7,8 @@ on:
     branches: [ main ]
 
 jobs:
-  backend-test:
-    name: Backend Tests
+  test:
+    name: Test
     runs-on: ubuntu-latest
     
     steps:
@@ -18,7 +18,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.24'
+        go-version: '1.21'
         
     - name: Cache Go modules
       uses: actions/cache@v4
@@ -31,15 +31,12 @@ jobs:
           ${{ runner.os }}-go-
           
     - name: Install dependencies
-      working-directory: ./backend
       run: go mod download
       
     - name: Verify dependencies
-      working-directory: ./backend
       run: go mod verify
       
     - name: Check formatting
-      working-directory: ./backend
       run: |
         if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
           echo "The following files are not formatted:"
@@ -48,66 +45,28 @@ jobs:
         fi
         
     - name: Run go vet
-      working-directory: ./backend
       run: go vet ./...
       
     - name: Run tests
-      working-directory: ./backend
       run: go test -race -coverprofile=coverage.out -covermode=atomic ./...
       
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4
       with:
-        file: ./backend/coverage.out
-        flags: backend
-        name: backend-coverage
+        file: ./coverage.out
+        flags: cli
+        name: cli-coverage
         
-    - name: Build
-      working-directory: ./backend
-      run: go build -v ./...
+    - name: Build CLI
+      run: go build -o pubdatahub cmd/main.go
 
-  frontend-test:
-    name: Frontend Tests
+  build:
+    name: Build Matrix
     runs-on: ubuntu-latest
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-        cache: 'npm'
-        cache-dependency-path: frontend/package-lock.json
-        
-    - name: Install dependencies
-      working-directory: ./frontend
-      run: npm ci
-      
-    - name: Check TypeScript compilation
-      working-directory: ./frontend
-      run: npx tsc --noEmit
-      
-    - name: Run ESLint
-      working-directory: ./frontend
-      run: npm run lint
-      
-    - name: Build application
-      working-directory: ./frontend
-      run: npm run build
-      
-    - name: Check build size
-      working-directory: ./frontend
-      run: |
-        echo "Build size analysis:"
-        du -sh dist/
-        ls -la dist/assets/
-        
-  integration-test:
-    name: Integration Tests
-    runs-on: ubuntu-latest
-    needs: [backend-test, frontend-test]
+    strategy:
+      matrix:
+        goos: [linux, darwin, windows]
+        goarch: [amd64, arm64]
     
     steps:
     - name: Checkout code
@@ -116,83 +75,15 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.24'
+        go-version: '1.21'
         
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-        cache: 'npm'
-        cache-dependency-path: frontend/package-lock.json
-        
-    - name: Install backend dependencies
-      working-directory: ./backend
-      run: go mod download
-      
-    - name: Install frontend dependencies
-      working-directory: ./frontend
-      run: npm ci
-      
-    - name: Start backend server
-      working-directory: ./backend
+    - name: Build binary
+      env:
+        GOOS: ${{ matrix.goos }}
+        GOARCH: ${{ matrix.goarch }}
       run: |
-        echo "Starting backend server..."
-        go run cmd/server/main.go &
-        SERVER_PID=$!
-        echo "Backend server started with PID: $SERVER_PID"
-        echo "SERVER_PID=$SERVER_PID" >> $GITHUB_ENV
-        
-    - name: Wait for server to be ready
-      run: |
-        echo "Waiting for backend server to be ready..."
-        for i in {1..30}; do
-          if curl -f http://localhost:8080/api/home >/dev/null 2>&1; then
-            echo "✅ Backend server is ready after ${i} attempts"
-            break
-          fi
-          echo "⏳ Attempt $i: Server not ready yet, waiting 2 seconds..."
-          sleep 2
-          if [ $i -eq 30 ]; then
-            echo "❌ Server failed to start after 60 seconds"
-            echo "Checking if server process is still running..."
-            ps aux | grep "go run cmd/server/main.go" || true
-            echo "Checking server logs..."
-            jobs -l || true
-            exit 1
-          fi
-        done
-        
-    - name: Test API endpoints
-      run: |
-        echo "Testing API endpoints..."
-        echo "Testing /api/home endpoint..."
-        response=$(curl -f http://localhost:8080/api/home)
-        echo "Response: $response"
-        
-        # Validate JSON response contains homePath
-        if echo "$response" | jq -e '.homePath' >/dev/null 2>&1; then
-          echo "✅ API response contains expected homePath field"
+        if [ "$GOOS" = "windows" ]; then
+          go build -o pubdatahub-${{ matrix.goos }}-${{ matrix.goarch }}.exe cmd/main.go
         else
-          echo "❌ API response missing homePath field"
-          exit 1
+          go build -o pubdatahub-${{ matrix.goos }}-${{ matrix.goarch }} cmd/main.go
         fi
-        
-        echo "✅ API endpoints working correctly"
-        
-    - name: Build frontend against running backend
-      working-directory: ./frontend
-      run: npm run build
-      
-    - name: Stop backend server
-      if: always()
-      run: |
-        echo "Stopping backend server..."
-        if [ -n "$SERVER_PID" ]; then
-          echo "Killing server with PID: $SERVER_PID"
-          kill $SERVER_PID || true
-          sleep 2
-          kill -9 $SERVER_PID 2>/dev/null || true
-        fi
-        # Fallback cleanup
-        pkill -f "go run cmd/server/main.go" || true
-        echo "Backend server stopped"
