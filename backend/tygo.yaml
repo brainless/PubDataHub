@@ -1,6 +1,0 @@
-packages:
-  - path: "github.com/brainless/PubDataHub/backend/internal/types"
-    type_mappings:
-      time.Time: "string"
-    output_path: "./api-types.ts"
-    style: "typescript"
