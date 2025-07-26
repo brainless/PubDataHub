@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -229,7 +230,7 @@ func (jp *JobPersistence) ListJobs(filter JobFilter) ([]*JobStatus, error) {
 			args = append(args, string(state))
 		}
 		conditions = append(conditions, fmt.Sprintf("j.state IN (%s)",
-			fmt.Sprintf("%s", placeholders)))
+			strings.Join(placeholders, ",")))
 	}
 
 	if len(filter.Types) > 0 {
@@ -239,7 +240,7 @@ func (jp *JobPersistence) ListJobs(filter JobFilter) ([]*JobStatus, error) {
 			args = append(args, string(jobType))
 		}
 		conditions = append(conditions, fmt.Sprintf("j.type IN (%s)",
-			fmt.Sprintf("%s", placeholders)))
+			strings.Join(placeholders, ",")))
 	}
 
 	if filter.CreatedBy != "" {

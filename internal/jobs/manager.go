@@ -14,6 +14,7 @@ type Manager struct {
 	persistence   *JobPersistence
 	workerPool    *WorkerPool
 	jobs          map[string]*JobStatus
+	runningJobs   map[string]*JobExecution
 	pausedJobs    map[string]*JobExecution
 	jobsMux       sync.RWMutex
 	ctx           context.Context
@@ -64,6 +65,7 @@ func NewManager(storagePath string, config ManagerConfig) (*Manager, error) {
 	manager := &Manager{
 		persistence:   persistence,
 		jobs:          make(map[string]*JobStatus),
+		runningJobs:   make(map[string]*JobExecution),
 		pausedJobs:    make(map[string]*JobExecution),
 		ctx:           ctx,
 		cancel:        cancel,
@@ -200,12 +202,21 @@ func (m *Manager) StartJob(id string) error {
 
 	// Create execution context
 	ctx, cancel := context.WithCancel(m.ctx)
-	defer cancel()
 
 	execution := NewJobExecution(job, status, ctx, m.config.JobTimeout)
+	execution.cancel = cancel
+
+	// Store running job execution
+	m.jobsMux.Lock()
+	m.runningJobs[status.ID] = execution
+	m.jobsMux.Unlock()
 
 	// Submit to worker pool
 	if err := m.workerPool.SubmitJob(execution); err != nil {
+		// Remove from running jobs if submission failed
+		m.jobsMux.Lock()
+		delete(m.runningJobs, status.ID)
+		m.jobsMux.Unlock()
 		return fmt.Errorf("failed to submit job to worker pool: %w", err)
 	}
 
@@ -276,6 +287,14 @@ func (m *Manager) CancelJob(id string) error {
 
 	if status.IsFinished() {
 		return fmt.Errorf("job %s is already finished (state: %s)", id, status.State)
+	}
+
+	// Cancel running job if it exists
+	if execution, exists := m.runningJobs[id]; exists {
+		if execution.cancel != nil {
+			execution.cancel()
+		}
+		delete(m.runningJobs, id)
 	}
 
 	// Update state
@@ -507,6 +526,11 @@ func (m *Manager) updateJobProgress(id string, progress JobProgress) {
 func (m *Manager) handleJobCompletion(id string) {
 	m.updateJobState(id, JobStateCompleted, "")
 
+	// Remove from running jobs
+	m.jobsMux.Lock()
+	delete(m.runningJobs, id)
+	m.jobsMux.Unlock()
+
 	m.emitEvent(JobEvent{
 		JobID:     id,
 		EventType: EventJobCompleted,
@@ -518,6 +542,11 @@ func (m *Manager) handleJobCompletion(id string) {
 // handleJobFailure handles job failure
 func (m *Manager) handleJobFailure(id string, err error) {
 	m.updateJobState(id, JobStateFailed, err.Error())
+
+	// Remove from running jobs
+	m.jobsMux.Lock()
+	delete(m.runningJobs, id)
+	m.jobsMux.Unlock()
 
 	m.emitEvent(JobEvent{
 		JobID:     id,

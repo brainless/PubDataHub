@@ -186,6 +186,11 @@ func (w *Worker) executeJob(execution *JobExecution) {
 			s.ActiveWorkers--
 		})
 
+		// Cancel the job context if it wasn't already cancelled
+		if execution.cancel != nil {
+			execution.cancel()
+		}
+
 		// Recover from panics
 		if r := recover(); r != nil {
 			log.Logger.Errorf("Worker %d panic while executing job %s: %v", w.id, execution.Status.ID, r)
@@ -240,6 +245,7 @@ type JobExecution struct {
 	Status  *JobStatus
 	Context context.Context
 	Timeout time.Duration
+	cancel  context.CancelFunc
 }
 
 // NewJobExecution creates a new job execution
