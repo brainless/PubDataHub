@@ -73,6 +73,7 @@ func (jf *JobFactory) createExportJob(status *JobStatus) (Job, error) {
 	}
 
 	job := NewExportJob(status.ID, query, format, output)
+	job.SetPriority(status.Priority)
 	return job, nil
 }
 

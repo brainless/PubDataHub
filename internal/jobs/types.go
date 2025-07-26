@@ -103,6 +103,7 @@ type Job interface {
 	ID() string
 	Type() JobType
 	Priority() JobPriority
+	SetPriority(priority JobPriority)
 	Description() string
 	Metadata() JobMetadata
 

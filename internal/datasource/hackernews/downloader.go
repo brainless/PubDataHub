@@ -59,6 +59,14 @@ func (d *Downloader) StartDownload(ctx context.Context) error {
 
 	d.status.ItemsTotal = maxID
 
+	// Get current cached count from storage
+	if result, err := d.storage.Query("SELECT COUNT(*) FROM items"); err == nil && len(result.Rows) > 0 {
+		if count, ok := result.Rows[0][0].(int64); ok {
+			d.status.ItemsCached = count
+			log.Logger.Infof("Current cached items: %d", count)
+		}
+	}
+
 	// Calculate missing batches
 	missingBatches, err := d.calculateMissingBatches(ctx, maxID)
 	if err != nil {
@@ -92,6 +100,14 @@ func (d *Downloader) StartDownload(ctx context.Context) error {
 		d.status.LastUpdate = time.Now()
 
 		log.Logger.Infof("Completed batch %d/%d (%.1f%%)", i+1, len(missingBatches), progress*100)
+	}
+
+	// Update final cached count
+	if result, err := d.storage.Query("SELECT COUNT(*) FROM items"); err == nil && len(result.Rows) > 0 {
+		if count, ok := result.Rows[0][0].(int64); ok {
+			d.status.ItemsCached = count
+			log.Logger.Infof("Final cached items: %d", count)
+		}
 	}
 
 	d.status.IsActive = false
