@@ -75,9 +75,22 @@ Future data sources:
 		Run: func(cmd *cobra.Command, args []string) {
 			// If no subcommands are provided, start interactive TUI
 			if len(args) == 0 {
-				shell := tui.NewShell()
-				if err := shell.Run(); err != nil {
-					log.Logger.Errorf("Shell error: %v", err)
+				// Try to create enhanced shell first
+				enhancedShell, err := tui.NewEnhancedShell()
+				if err != nil {
+					log.Logger.Warnf("Enhanced shell not available: %v, falling back to basic shell", err)
+					// Fall back to basic shell
+					shell := tui.NewShell()
+					if err := shell.Run(); err != nil {
+						log.Logger.Errorf("Shell error: %v", err)
+						os.Exit(1)
+					}
+					return
+				}
+
+				// Use enhanced shell
+				if err := enhancedShell.Run(); err != nil {
+					log.Logger.Errorf("Enhanced shell error: %v", err)
 					os.Exit(1)
 				}
 				return
