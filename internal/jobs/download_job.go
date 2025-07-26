@@ -324,6 +324,11 @@ func (ej *ExportJob) Priority() JobPriority {
 	return ej.priority
 }
 
+// SetPriority sets the job priority
+func (ej *ExportJob) SetPriority(priority JobPriority) {
+	ej.priority = priority
+}
+
 // Description returns the job description
 func (ej *ExportJob) Description() string {
 	return fmt.Sprintf("Export query results to %s format", ej.format)
