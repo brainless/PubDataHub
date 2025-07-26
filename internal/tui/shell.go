@@ -12,6 +12,7 @@ import (
 	"github.com/brainless/PubDataHub/internal/config"
 	"github.com/brainless/PubDataHub/internal/datasource"
 	"github.com/brainless/PubDataHub/internal/datasource/hackernews"
+	"github.com/brainless/PubDataHub/internal/jobs"
 	"github.com/brainless/PubDataHub/internal/log"
 )
 
@@ -19,7 +20,7 @@ import (
 type Shell struct {
 	ctx         context.Context
 	cancel      context.CancelFunc
-	jobManager  *JobManager
+	jobManager  *jobs.EnhancedJobManager
 	dataSources map[string]datasource.DataSource
 	reader      *bufio.Scanner
 }
@@ -31,13 +32,27 @@ func NewShell() *Shell {
 	shell := &Shell{
 		ctx:         ctx,
 		cancel:      cancel,
-		jobManager:  NewJobManager(ctx),
 		dataSources: make(map[string]datasource.DataSource),
 		reader:      bufio.NewScanner(os.Stdin),
 	}
 
 	// Initialize available data sources
 	shell.initializeDataSources()
+
+	// Initialize enhanced job manager
+	jobConfig := jobs.DefaultManagerConfig()
+	enhancedJobManager, err := jobs.NewEnhancedJobManager(config.AppConfig.StoragePath, shell.dataSources, jobConfig)
+	if err != nil {
+		log.Logger.Errorf("Failed to create enhanced job manager: %v", err)
+		// Fall back to basic job manager for compatibility
+		shell.jobManager = nil
+	} else {
+		shell.jobManager = enhancedJobManager
+		// Start the job manager
+		if err := shell.jobManager.Start(); err != nil {
+			log.Logger.Errorf("Failed to start job manager: %v", err)
+		}
+	}
 
 	return shell
 }
@@ -173,6 +188,10 @@ func (s *Shell) handleConfigCommand(args []string) error {
 
 // handleDownloadCommand processes download commands
 func (s *Shell) handleDownloadCommand(args []string) error {
+	if s.jobManager == nil {
+		return fmt.Errorf("job manager not available")
+	}
+
 	if len(args) == 0 {
 		return fmt.Errorf("download command requires a data source name")
 	}
@@ -184,7 +203,10 @@ func (s *Shell) handleDownloadCommand(args []string) error {
 	}
 
 	// Create and start a download job
-	jobID := s.jobManager.StartDownloadJob(sourceName, ds)
+	jobID, err := s.jobManager.StartDownloadJob(sourceName, ds)
+	if err != nil {
+		return fmt.Errorf("failed to start download job: %w", err)
+	}
 	fmt.Printf("Started download job %s for %s\n", jobID, sourceName)
 	return nil
 }
@@ -215,40 +237,74 @@ func (s *Shell) handleQueryCommand(args []string) error {
 
 // handleJobsCommand processes job management commands
 func (s *Shell) handleJobsCommand(args []string) error {
+	if s.jobManager == nil {
+		return fmt.Errorf("job manager not available")
+	}
+
 	if len(args) == 0 {
-		return fmt.Errorf("jobs command requires subcommand (list, status, stop)")
+		return fmt.Errorf("jobs command requires subcommand (list, status, pause, resume, stop, stats)")
 	}
 
 	switch args[0] {
 	case "list":
-		jobs := s.jobManager.ListJobs()
-		if len(jobs) == 0 {
+		summaries, err := s.jobManager.ListActiveSummaries()
+		if err != nil {
+			return fmt.Errorf("failed to list jobs: %w", err)
+		}
+		if len(summaries) == 0 {
 			fmt.Println("No active jobs")
 			return nil
 		}
 		fmt.Println("Active jobs:")
-		for _, job := range jobs {
-			fmt.Printf("  %s: %s (%s)\n", job.ID, job.Description, job.Status)
+		for _, summary := range summaries {
+			fmt.Printf("  %s: %s (%s) - %.1f%% - %s\n",
+				summary["id"],
+				summary["description"],
+				summary["state"],
+				summary["progress"],
+				summary["message"])
 		}
 		return nil
 	case "status":
 		if len(args) < 2 {
 			return fmt.Errorf("status command requires job ID")
 		}
-		job := s.jobManager.GetJob(args[1])
-		if job == nil {
-			return fmt.Errorf("job not found: %s", args[1])
+		summary, err := s.jobManager.GetJobSummary(args[1])
+		if err != nil {
+			return fmt.Errorf("failed to get job status: %w", err)
 		}
-		s.displayJobStatus(job)
+		s.displayJobSummary(summary)
+		return nil
+	case "pause":
+		if len(args) < 2 {
+			return fmt.Errorf("pause command requires job ID")
+		}
+		if err := s.jobManager.PauseJob(args[1]); err != nil {
+			return fmt.Errorf("failed to pause job: %w", err)
+		}
+		fmt.Printf("Job %s paused\n", args[1])
+		return nil
+	case "resume":
+		if len(args) < 2 {
+			return fmt.Errorf("resume command requires job ID")
+		}
+		if err := s.jobManager.ResumeJob(args[1]); err != nil {
+			return fmt.Errorf("failed to resume job: %w", err)
+		}
+		fmt.Printf("Job %s resumed\n", args[1])
 		return nil
 	case "stop":
 		if len(args) < 2 {
 			return fmt.Errorf("stop command requires job ID")
 		}
-		if err := s.jobManager.StopJob(args[1]); err != nil {
+		if err := s.jobManager.CancelJob(args[1]); err != nil {
 			return fmt.Errorf("failed to stop job: %w", err)
 		}
 		fmt.Printf("Job %s stopped\n", args[1])
+		return nil
+	case "stats":
+		summary := s.jobManager.GetManagerSummary()
+		s.displayManagerStats(summary)
 		return nil
 	default:
 		return fmt.Errorf("unknown jobs subcommand: %s", args[0])
@@ -361,12 +417,53 @@ func (s *Shell) displayDownloadStatus(sourceName string, status datasource.Downl
 	}
 }
 
+// displayJobSummary shows detailed job summary
+func (s *Shell) displayJobSummary(summary map[string]interface{}) {
+	fmt.Printf("Job %s:\n", summary["id"])
+	fmt.Printf("  Type: %s\n", summary["type"])
+	fmt.Printf("  Description: %s\n", summary["description"])
+	fmt.Printf("  State: %s\n", summary["state"])
+	fmt.Printf("  Progress: %.1f%%\n", summary["progress"])
+	fmt.Printf("  Message: %s\n", summary["message"])
+	fmt.Printf("  Duration: %s\n", summary["duration"])
+	fmt.Printf("  Active: %t\n", summary["active"])
+
+	if endTime, exists := summary["end_time"]; exists {
+		fmt.Printf("  End Time: %s\n", endTime)
+	}
+
+	if errorMsg, exists := summary["error"]; exists {
+		fmt.Printf("  Error: %s\n", errorMsg)
+	}
+}
+
+// displayManagerStats shows job manager statistics
+func (s *Shell) displayManagerStats(summary map[string]interface{}) {
+	fmt.Println("Job Manager Statistics:")
+	fmt.Printf("  Total Jobs: %v\n", summary["total_jobs"])
+	fmt.Printf("  Active Jobs: %v\n", summary["active_jobs"])
+	fmt.Printf("  Queued Jobs: %v\n", summary["queued_jobs"])
+	fmt.Printf("  Running Jobs: %v\n", summary["running_jobs"])
+	fmt.Printf("  Completed Jobs: %v\n", summary["completed_jobs"])
+	fmt.Printf("  Failed Jobs: %v\n", summary["failed_jobs"])
+
+	if workerStats, exists := summary["worker_stats"].(map[string]interface{}); exists {
+		fmt.Println("  Worker Pool:")
+		fmt.Printf("    Total Workers: %v\n", workerStats["total_workers"])
+		fmt.Printf("    Active Workers: %v\n", workerStats["active_workers"])
+		fmt.Printf("    Idle Workers: %v\n", workerStats["idle_workers"])
+		fmt.Printf("    Queue Size: %v\n", workerStats["queue_size"])
+	}
+}
+
 // shutdown performs graceful shutdown
 func (s *Shell) shutdown() error {
 	fmt.Println("\nShutting down...")
 
 	// Stop job manager
-	s.jobManager.Stop()
+	if s.jobManager != nil {
+		s.jobManager.Stop()
+	}
 
 	// Close data sources
 	for name, ds := range s.dataSources {
