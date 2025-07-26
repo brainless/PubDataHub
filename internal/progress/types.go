@@ -134,3 +134,25 @@ type StatusDisplay interface {
 	ClearDisplay() error
 	SetRefreshRate(duration time.Duration)
 }
+
+// DownloadConfig holds configuration for a download operation
+type DownloadConfig struct {
+	BatchSize    int    `json:"batch_size"`
+	Priority     int    `json:"priority"`     // 1=low, 5=normal, 10=high
+	Resume       bool   `json:"resume"`       // Resume from last position
+	MaxRetries   int    `json:"max_retries"`  // Maximum retry attempts
+	Timeout      int    `json:"timeout"`      // Timeout in seconds
+	RateLimit    int    `json:"rate_limit"`   // Items per second limit
+}
+
+// DefaultDownloadConfig returns a default download configuration
+func DefaultDownloadConfig() DownloadConfig {
+	return DownloadConfig{
+		BatchSize:  100,
+		Priority:   5, // Normal priority
+		Resume:     true,
+		MaxRetries: 3,
+		Timeout:    300, // 5 minutes
+		RateLimit:  0,   // No rate limit
+	}
+}

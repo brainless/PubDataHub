@@ -32,7 +32,7 @@ func NewDownloadManager(jobManager jobs.JobManager, progressTracker progress.Pro
 }
 
 // StartDownload starts a background download for a data source
-func (dm *DownloadManager) StartDownload(sourceName string, config DownloadConfig) (string, error) {
+func (dm *DownloadManager) StartDownload(sourceName string, config progress.DownloadConfig) (string, error) {
 	// Validate data source exists
 	dataSource, exists := dm.dataSources[sourceName]
 	if !exists {
@@ -62,7 +62,6 @@ func (dm *DownloadManager) StartDownload(sourceName string, config DownloadConfi
 	downloadJob := &DownloadJob{
 		ID:         jobID,
 		DataSource: sourceName,
-		Config:     config,
 		StartTime:  time.Now(),
 		Status:     DownloadStatusQueued,
 	}

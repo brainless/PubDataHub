@@ -2,31 +2,8 @@ package download
 
 import (
 	"time"
-
-	"github.com/brainless/PubDataHub/internal/progress"
 )
 
-// DownloadConfig holds configuration for a download operation
-type DownloadConfig struct {
-	BatchSize    int    `json:"batch_size"`
-	Priority     int    `json:"priority"`     // 1=low, 5=normal, 10=high
-	Resume       bool   `json:"resume"`       // Resume from last position
-	MaxRetries   int    `json:"max_retries"`  // Maximum retry attempts
-	Timeout      int    `json:"timeout"`      // Timeout in seconds
-	RateLimit    int    `json:"rate_limit"`   // Items per second limit
-}
-
-// DefaultDownloadConfig returns a default download configuration
-func DefaultDownloadConfig() DownloadConfig {
-	return DownloadConfig{
-		BatchSize:  100,
-		Priority:   5, // Normal priority
-		Resume:     true,
-		MaxRetries: 3,
-		Timeout:    300, // 5 minutes
-		RateLimit:  0,   // No rate limit
-	}
-}
 
 // DownloadStatus represents the status of a download operation
 type DownloadStatus string
@@ -40,12 +17,11 @@ const (
 	DownloadStatusCancelled DownloadStatus = "cancelled"
 )
 
-// DownloadJob represents a download operation
+// DownloadJob represents a download operation  
 type DownloadJob struct {
 	ID           string         `json:"id"`
 	DataSource   string         `json:"data_source"`
 	Status       DownloadStatus `json:"status"`
-	Config       DownloadConfig `json:"config"`
 	StartTime    time.Time      `json:"start_time"`
 	EndTime      *time.Time     `json:"end_time,omitempty"`
 	ErrorMessage string         `json:"error_message,omitempty"`
@@ -73,22 +49,22 @@ func (dj *DownloadJob) IsFinished() bool {
 // DownloadManagerInterface defines the contract for download management
 type DownloadManagerInterface interface {
 	// Job Management
-	StartDownload(source string, config DownloadConfig) (string, error)
+	StartDownload(source string, config interface{}) (string, error)
 	PauseDownload(jobID string) error
 	ResumeDownload(jobID string) error
 	StopDownload(jobID string) error
 
 	// Progress Tracking
-	GetProgress(jobID string) (progress.Progress, error)
-	GetAllProgress() map[string]progress.Progress
+	GetProgress(jobID string) (interface{}, error)
+	GetAllProgress() map[string]interface{}
 
 	// Status and Information
 	GetDownloadJob(jobID string) (*DownloadJob, error)
 	GetAllDownloadJobs() map[string]*DownloadJob
-	GetSystemStatus() (progress.SystemStatus, error)
+	GetSystemStatus() (interface{}, error)
 
 	// Integration Points
-	RegisterProgressCallback(callback progress.ProgressCallback)
+	RegisterProgressCallback(callback interface{})
 }
 
 // ProgressUpdateEvent represents a progress update event
