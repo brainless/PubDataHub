@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-PubDataHub is a command-line application written in Go that enables users to download and query data from various public data sources. The application follows a modular architecture to support multiple data sources with different storage and querying mechanisms.
+PubDataHub is an interactive terminal application that enables users to download and query data from various public data sources. The application provides a Claude Code-style interactive interface where downloads happen in background workers while the UI remains responsive for queries and other operations.
 
 ## Development Workflow
 - Create a new branch for each task
@@ -17,32 +17,38 @@ PubDataHub is a command-line application written in Go that enables users to dow
 
 ## Project Status
 
-**Current Phase**: Core Infrastructure Development
-- CLI framework setup and basic commands
-- Configuration management system
-- Data source interface definition
-- Initial Hacker News data source implementation
+**Current Phase**: Migration to Interactive TUI
+- Converting from CLI arguments to interactive shell
+- Implementing background worker architecture
+- Job management and progress tracking system
+- Maintaining Hacker News data source compatibility
 
 ## Architecture
 
 ```
-PubDataHub/
-├── cmd/                  # CLI entry points
-├── internal/            # Internal packages
-│   ├── config/         # Configuration management
-│   ├── datasource/     # Data source implementations
-│   ├── storage/        # Storage backends (SQLite, CSV, JSON)
-│   └── query/          # Query engine
-├── pkg/                # Public packages
-└── scripts/            # Build and utility scripts
+┌─────────────────────────────────────────────────────────────┐
+│                    Interactive TUI                         │
+├─────────────────────────────────────────────────────────────┤
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────┐  │
+│  │   Main Thread   │  │ Background      │  │   Query     │  │
+│  │   (UI/Input)    │  │ Workers         │  │  Engine     │  │
+│  │                 │  │ (Downloads)     │  │             │  │
+│  └─────────────────┘  └─────────────────┘  └─────────────┘  │
+├─────────────────────────────────────────────────────────────┤
+│               Job Queue & Progress Tracking                 │
+├─────────────────────────────────────────────────────────────┤
+│                    Data Sources                            │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ## Technology Stack
 
-- **Core**: Go 1.21+ with cobra CLI framework
+- **Core**: Go 1.21+ with interactive TUI framework
 - **Configuration**: Viper for config management
 - **Storage**: SQLite for structured data
 - **HTTP**: Standard library net/http client
+- **Concurrency**: Worker pools for background downloads
+- **UI**: Terminal-based interactive shell (Claude Code style)
 
 ## Development Workflow
 
@@ -62,25 +68,23 @@ PubDataHub/
 ## Development Commands
 
 ### Basic Commands
-- **Build CLI**: `go build -o pubdatahub cmd/main.go`
-- **Run CLI**: `./pubdatahub [command]`
+- **Build app**: `go build -o pubdatahub cmd/main.go`
+- **Run interactive**: `./pubdatahub` (no arguments - enters TUI mode)
 - **Install dependencies**: `go mod tidy`
 - **Run tests**: `go test ./...`
 - **Format code**: `gofmt -s -w .`
 
-### CLI Usage Examples
+### Interactive Usage Examples
 ```bash
-# Set storage path
-./pubdatahub config set-storage /path/to/storage
+# Launch interactive shell
+./pubdatahub
 
-# List data sources
-./pubdatahub sources list
-
-# Download Hacker News data
-./pubdatahub sources download hackernews
-
-# Query data
-./pubdatahub query hackernews "SELECT title FROM items LIMIT 10"
+# Inside interactive shell:
+> config set-storage /path/to/storage
+> download hackernews
+> jobs status
+> query hackernews "SELECT title FROM items LIMIT 10"
+> help
 ```
 
 ## Development Notes
@@ -97,14 +101,14 @@ PubDataHub/
 ## Project Components
 
 ### Core Components
-1. **Configuration Manager** - Handles storage path and settings
-2. **Data Source Interface** - Common interface for all data sources
-3. **Download Manager** - Manages concurrent downloads with progress tracking
-4. **Query Engine** - Executes queries against stored data
-5. **CLI Interface** - Command-line interface using cobra
+1. **Interactive TUI** - Claude Code-style terminal interface
+2. **Job Manager** - Background worker orchestration and progress tracking
+3. **Configuration Manager** - Handles storage path and settings
+4. **Data Source Interface** - Common interface for all data sources
+5. **Query Engine** - Executes queries against stored data while downloads run
 
 ### Implementation Phases
-- **Phase 1**: Core infrastructure and CLI framework
-- **Phase 2**: Hacker News data source implementation
-- **Phase 3**: Enhanced features (resume/pause, exports)
-- **Phase 4**: Optimization and additional data sources
+- **Phase 1**: Migration to interactive TUI with background workers
+- **Phase 2**: Job management and progress tracking system
+- **Phase 3**: Enhanced concurrent operations (pause/resume, multiple jobs)
+- **Phase 4**: Additional data sources and export features

@@ -1,21 +1,90 @@
-# PubDataHub CLI - Technical Design Document
+# PubDataHub - Interactive Data Hub
 
 ## Overview
 
-PubDataHub is a command-line application written in Go that enables users to download and query data from various public data sources. The application follows a modular architecture to support multiple data sources with different storage and querying mechanisms.
+PubDataHub is an interactive terminal application that enables users to download and query data from various public data sources. The application provides a Claude Code-style interactive interface where downloads happen in the background while the UI remains responsive for queries and other operations.
 
-## Architecture Overview
+## Quick Start
+
+Launch the interactive application:
+
+```bash
+pubdatahub
+```
+
+Once inside the interactive shell, you can use various commands to manage data sources and perform queries.
+
+## Interactive Commands
+
+### Getting Started
+
+```
+> help                          # Show all available commands
+> sources                       # List available data sources
+> status                        # Show overall system status
+```
+
+### Configuration
+
+```
+> config set-storage /path/to/storage    # Set storage location
+> config show                            # Show current configuration
+> config validate                        # Validate storage setup
+```
+
+### Download Management
+
+```
+> download hackernews                    # Start Hacker News download in background
+> download hackernews 1000               # Download specific number of items
+> download hackernews --resume           # Resume interrupted download
+
+> jobs                                   # List active background jobs
+> jobs status                            # Show detailed job status
+> jobs pause job_123                     # Pause specific download job
+> jobs resume job_123                    # Resume paused job
+> jobs stop job_123                      # Stop running job
+```
+
+### Querying Data
+
+```
+> query hackernews "SELECT title, score FROM items WHERE type='story' ORDER BY score DESC LIMIT 10"
+
+> search hackernews "AI startups"        # Quick text search
+> search hackernews "author:pg"          # Search by author
+
+> export hackernews "SELECT * FROM items WHERE score > 100" --format csv --file results.csv
+```
+
+### Interactive Query Mode
+
+```
+> query hackernews --interactive
+hackernews> SELECT COUNT(*) FROM items;
+hackernews> .schema items
+hackernews> .exit
+```
+
+## Architecture
+
+The application uses a worker-based architecture that keeps the UI responsive:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                        CLI Layer                            │
+│                    Interactive TUI                         │
 ├─────────────────────────────────────────────────────────────┤
-│                    Command Parser                           │
+│                  Command Processor                         │
 ├─────────────────────────────────────────────────────────────┤
-│                  Configuration Manager                      │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────┐  │
+│  │   Main Thread   │  │ Background      │  │   Query     │  │
+│  │   (UI/Input)    │  │ Workers         │  │  Engine     │  │
+│  │                 │  │ (Downloads)     │  │             │  │
+│  └─────────────────┘  └─────────────────┘  └─────────────┘  │
 ├─────────────────────────────────────────────────────────────┤
-│               Data Source Manager                           │
+│               Job Queue & Progress Tracking                 │
 ├─────────────────────────────────────────────────────────────┤
+│                    Data Sources                            │
 │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────┐  │
 │  │ Hacker News     │  │   Future        │  │   Future    │  │
 │  │ Data Source     │  │ Data Source 1   │  │Data Source 2│  │
@@ -29,298 +98,131 @@ PubDataHub is a command-line application written in Go that enables users to dow
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## Core Components
+## Key Features
 
-### 1. Configuration Manager
+### Background Processing
+- Downloads run in separate worker processes
+- UI remains responsive during long-running operations
+- Real-time progress updates and status monitoring
+- Ability to pause, resume, and cancel operations
 
-**Purpose**: Manages application configuration, primarily the storage path.
+### Interactive Experience
+- Claude Code-style command interface
+- Tab completion for commands and data source names  
+- Command history and navigation
+- Contextual help and error messages
 
-**Key Responsibilities**:
-- Store and retrieve storage path configuration
-- Validate storage path accessibility
-- Create necessary directory structure
-- Persist configuration across sessions
+### Concurrent Operations
+- Query existing data while downloads are active
+- Multiple data sources can be downloaded simultaneously
+- Job management with unique identifiers
+- Resource-aware scheduling to prevent system overload
 
-**Configuration File Structure**:
-```json
-{
-  "storage_path": "/path/to/data/storage",
-  "last_updated": "2025-01-15T10:30:00Z",
-  "data_sources": {
-    "hackernews": {
-      "enabled": true,
-      "last_sync": "2025-01-15T09:00:00Z"
-    }
-  }
-}
+## Data Sources
+
+### Hacker News
+The Hacker News data source provides access to stories, comments, and user data from Hacker News.
+
+**Available Data:**
+- Stories (title, URL, score, comments)
+- Comments (text, author, replies)
+- User profiles and activity
+- Real-time updates for new content
+
+**Common Queries:**
+```
+> query hackernews "SELECT title, score FROM items WHERE type='story' AND score > 100 ORDER BY score DESC"
+> search hackernews "machine learning"
+> query hackernews "SELECT by, COUNT(*) as posts FROM items WHERE type='story' GROUP BY by ORDER BY posts DESC LIMIT 10"
 ```
 
-### 2. Data Source Interface
+## Job Management
 
-**Purpose**: Define a common interface for all data sources.
+Background jobs are managed through a queue system:
 
-```go
-type DataSource interface {
-    // Metadata
-    Name() string
-    Description() string
-    
-    // Download Management
-    GetDownloadStatus() DownloadStatus
-    StartDownload(ctx context.Context) error
-    PauseDownload() error
-    ResumeDownload(ctx context.Context) error
-    
-    // Query Interface
-    Query(query string) (QueryResult, error)
-    GetSchema() Schema
-    
-    // Storage Management
-    InitializeStorage(storagePath string) error
-    GetStoragePath() string
-}
+**Job States:**
+- `queued` - Waiting to start
+- `running` - Currently active
+- `paused` - Temporarily stopped
+- `completed` - Finished successfully
+- `failed` - Stopped due to error
 
-type DownloadStatus struct {
-    IsActive     bool
-    Progress     float64  // 0.0 to 1.0
-    ItemsTotal   int64
-    ItemsCached  int64
-    LastUpdate   time.Time
-    Status       string   // "idle", "downloading", "paused", "error"
-    ErrorMessage string
-}
+**Job Commands:**
+```
+> jobs                    # List all jobs
+Job ID    | Source      | Status   | Progress | Started
+job_001   | hackernews  | running  | 45%      | 2 min ago
+job_002   | hackernews  | paused   | 78%      | 1 hour ago
+
+> jobs detail job_001     # Show detailed job information
+> jobs logs job_001       # Show job execution logs
 ```
 
-### 3. Hacker News Data Source Implementation
+## Configuration
 
-**API Integration**:
-- Base URL: `https://hacker-news.firebaseio.com/v0/`
-- Key endpoints:
-  - `/maxitem.json` - Get the current largest item ID
-  - `/item/{id}.json` - Get specific item details
-  - `/topstories.json`, `/newstories.json`, etc. - Get story lists
-
-**Download Strategy**:
-1. **Initial Sync**: Download all items from ID 1 to current max ID
-2. **Incremental Sync**: Periodically check for new items beyond last known ID
-3. **Batch Processing**: Download items in configurable batch sizes
-4. **Rate Limiting**: Respect API rate limits with exponential backoff
-
-**SQLite Schema**:
-```sql
-CREATE TABLE items (
-    id INTEGER PRIMARY KEY,
-    type TEXT NOT NULL,
-    by TEXT,
-    time INTEGER,
-    text TEXT,
-    dead BOOLEAN DEFAULT FALSE,
-    deleted BOOLEAN DEFAULT FALSE,
-    parent INTEGER,
-    kids TEXT, -- JSON array of child IDs
-    url TEXT,
-    score INTEGER,
-    title TEXT,
-    descendants INTEGER,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE download_metadata (
-    key TEXT PRIMARY KEY,
-    value TEXT,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX idx_items_type ON items(type);
-CREATE INDEX idx_items_by ON items(by);
-CREATE INDEX idx_items_time ON items(time);
-CREATE INDEX idx_items_parent ON items(parent);
-```
-
-### 4. Download Manager
-
-**Key Features**:
-- Concurrent downloading with configurable worker pools
-- Progress tracking and persistence
-- Graceful shutdown handling
-- Resume capability after interruption
-- Error handling and retry logic
-
-**Progress Tracking**:
-```go
-type ProgressTracker struct {
-    TotalItems    int64
-    ProcessedItems int64
-    FailedItems   int64
-    StartTime     time.Time
-    LastUpdate    time.Time
-    EstimatedETA  time.Duration
-}
-```
-
-### 5. Query Engine
-
-**For Hacker News (SQLite)**:
-- Direct SQL query execution
-- Result formatting (table, JSON, CSV output)
-- Query validation and sanitization
-- Common query templates/shortcuts
-
-**Query Result Format**:
-```go
-type QueryResult struct {
-    Columns []string
-    Rows    [][]interface{}
-    Count   int
-    Duration time.Duration
-}
-```
-
-## CLI Interface Design
-
-### Command Structure
-
-```
-pubdatahub [global-flags] <command> [command-flags] [args]
-```
-
-### Global Flags
-- `--storage-path, -p`: Set/update storage path
-- `--config`: Specify custom config file location
-- `--verbose, -v`: Enable verbose logging
-- `--help, -h`: Show help
-
-### Commands
-
-#### Configuration Commands
-```bash
-# Set storage path
-pubdatahub config set-storage /path/to/storage
-
-# Show current configuration
-pubdatahub config show
-
-# Validate storage path
-pubdatahub config validate
-```
-
-#### Data Source Commands
-```bash
-# List available data sources
-pubdatahub sources list
-
-# Show status of specific data source
-pubdatahub sources status hackernews
-
-# Start download for data source
-pubdatahub sources download hackernews [--resume] [--batch-size=100]
-
-# Show download progress
-pubdatahub sources progress hackernews
-```
-
-#### Query Commands
-```bash
-# Execute SQL query on Hacker News data
-pubdatahub query hackernews "SELECT title, score FROM items WHERE type='story' ORDER BY score DESC LIMIT 10"
-
-# Interactive query mode
-pubdatahub query hackernews --interactive
-
-# Export query results
-pubdatahub query hackernews "SELECT * FROM items" --output=csv --file=export.csv
-```
-
-## File Structure
+The application stores configuration and data in a structured directory:
 
 ```
 storage_path/
-├── config.json
+├── config.json          # Application configuration
+├── jobs/                 # Background job state
+│   ├── active/
+│   └── completed/
 ├── hackernews/
-│   ├── data.sqlite
-│   ├── download.log
-│   └── metadata.json
+│   ├── data.sqlite      # Hacker News database
+│   └── metadata.json   # Download metadata
 └── logs/
-    └── pubdatahub.log
+    └── pubdatahub.log   # Application logs
 ```
 
-## Implementation Phases
+## Advanced Usage
 
-### Phase 1: Core Infrastructure
-- [ ] Project setup and dependency management
-- [ ] Configuration management implementation
-- [ ] CLI framework setup (using cobra/cli)
-- [ ] Basic logging infrastructure
-- [ ] Data source interface definition
+### Custom Queries
+```
+> query hackernews --interactive
+hackernews> .tables                    # List available tables
+hackernews> .schema items              # Show table structure
+hackernews> SELECT 
+           >   strftime('%Y-%m', datetime(time, 'unixepoch')) as month,
+           >   COUNT(*) as stories
+           > FROM items 
+           > WHERE type='story' 
+           > GROUP BY month 
+           > ORDER BY month DESC 
+           > LIMIT 12;
+```
 
-### Phase 2: Hacker News Integration
-- [ ] Hacker News API client implementation
-- [ ] SQLite storage implementation
-- [ ] Download manager with progress tracking
-- [ ] Basic query functionality
+### Batch Operations
+```
+> download hackernews --batch-size 500  # Adjust download batch size
+> jobs set-concurrency 4                # Limit concurrent downloads
+> config set download-timeout 30s       # Set network timeout
+```
 
-### Phase 3: Enhanced Features
-- [ ] Resume/pause functionality
-- [ ] Interactive query mode
-- [ ] Export capabilities
-- [ ] Enhanced error handling and recovery
+### Data Export
+```
+> export hackernews "SELECT * FROM items WHERE score > 50" --format json --file top_stories.json
+> export hackernews "SELECT title, url, score FROM items WHERE type='story'" --format csv --file stories.csv
+```
 
-### Phase 4: Polish and Optimization
-- [ ] Performance optimization
-- [ ] Comprehensive testing
-- [ ] Documentation
-- [ ] Release preparation
+## Getting Help
 
-## Dependencies
+```
+> help                    # General help
+> help download           # Help for specific command
+> help hackernews         # Help for data source
+> status --verbose        # Detailed system status
+```
 
-### Core Libraries
-- **CLI Framework**: `github.com/spf13/cobra`
-- **Configuration**: `github.com/spf13/viper`
-- **SQLite Driver**: `github.com/mattn/go-sqlite3`
-- **HTTP Client**: `net/http` (standard library)
-- **JSON Processing**: `encoding/json` (standard library)
+## Migration from CLI Version
 
-### Additional Libraries
-- **Progress Bars**: `github.com/schollz/progressbar/v3`
-- **Table Formatting**: `github.com/olekukonko/tablewriter`
-- **Logging**: `github.com/sirupsen/logrus`
-- **Context Management**: `context` (standard library)
+If you were using the previous CLI version (now documented in `README_CLI.md`), the interactive commands map as follows:
 
-## Error Handling Strategy
+| Old CLI Command | New Interactive Command |
+|----------------|------------------------|
+| `pubdatahub config show` | `config show` |
+| `pubdatahub sources download hackernews` | `download hackernews` |
+| `pubdatahub sources status hackernews` | `status hackernews` |
+| `pubdatahub query hackernews "SQL"` | `query hackernews "SQL"` |
 
-### Categories
-1. **Configuration Errors**: Invalid storage path, permissions
-2. **Network Errors**: API unavailable, rate limiting, timeouts
-3. **Storage Errors**: Disk space, database corruption, file permissions
-4. **Data Errors**: Invalid API responses, parsing failures
-5. **User Errors**: Invalid queries, missing arguments
-
-### Recovery Mechanisms
-- Automatic retry with exponential backoff for network errors
-- Graceful degradation for partial failures
-- Clear error messages with suggested actions
-- State persistence for recovery after crashes
-
-## Security Considerations
-
-- **Input Validation**: Sanitize all user inputs, especially SQL queries
-- **File Permissions**: Ensure proper permissions on storage directories
-- **API Rate Limiting**: Respect external API limits to avoid blocking
-- **Error Information**: Avoid exposing sensitive information in error messages
-
-## Performance Considerations
-
-- **Concurrent Downloads**: Use worker pools for parallel API requests
-- **Database Optimization**: Proper indexing and query optimization
-- **Memory Management**: Stream large datasets instead of loading into memory
-- **Disk Space**: Monitor storage usage and provide warnings
-
-## Future Extensibility
-
-The architecture is designed to easily accommodate:
-- New data sources (Reddit, Twitter, etc.)
-- Different storage backends (PostgreSQL, ClickHouse)
-- Additional query languages (GraphQL, custom DSL)
-- Export formats (Parquet, Avro)
-- Real-time data streaming capabilities
+The interactive version provides the same functionality with improved user experience and background processing capabilities.
