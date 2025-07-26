@@ -11,22 +11,22 @@ import (
 
 // PoolScaler handles automatic scaling of the worker pool based on load
 type PoolScaler struct {
-	pool     *EnhancedWorkerPool
-	config   *ScalingConfig
-	ctx      context.Context
-	cancel   context.CancelFunc
-	running  int32
-	stats    ScalingStats
-	mu       sync.RWMutex
+	pool      *EnhancedWorkerPool
+	config    *ScalingConfig
+	ctx       context.Context
+	cancel    context.CancelFunc
+	running   int32
+	stats     ScalingStats
+	mu        sync.RWMutex
 	lastScale time.Time
 }
 
 // ScalingStats tracks scaling activities and decisions
 type ScalingStats struct {
-	TotalScaleUps     int64     `json:"total_scale_ups"`
-	TotalScaleDowns   int64     `json:"total_scale_downs"`
-	LastScaleAction   string    `json:"last_scale_action"`
-	LastScaleTime     time.Time `json:"last_scale_time"`
+	TotalScaleUps      int64     `json:"total_scale_ups"`
+	TotalScaleDowns    int64     `json:"total_scale_downs"`
+	LastScaleAction    string    `json:"last_scale_action"`
+	LastScaleTime      time.Time `json:"last_scale_time"`
 	CurrentUtilization float64   `json:"current_utilization"`
 	AverageUtilization float64   `json:"average_utilization"`
 	TargetSize         int       `json:"target_size"`
@@ -36,7 +36,7 @@ type ScalingStats struct {
 // NewPoolScaler creates a new pool scaler
 func NewPoolScaler(pool *EnhancedWorkerPool, config *ScalingConfig) *PoolScaler {
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	return &PoolScaler{
 		pool:      pool,
 		config:    config,
@@ -125,10 +125,10 @@ func (ps *PoolScaler) calculateUtilization(stats WorkerPoolStats) float64 {
 	if stats.TotalWorkers == 0 {
 		return 0.0
 	}
-	
+
 	// Utilization is based on active workers + queue pressure
 	activeUtilization := float64(stats.ActiveWorkers) / float64(stats.TotalWorkers)
-	
+
 	// Add queue pressure factor
 	queuePressure := 0.0
 	if stats.QueueSize > 0 {
@@ -138,7 +138,7 @@ func (ps *PoolScaler) calculateUtilization(stats WorkerPoolStats) float64 {
 			queuePressure = 0.5 // Cap at 50% additional pressure
 		}
 	}
-	
+
 	return activeUtilization + queuePressure
 }
 
@@ -147,12 +147,12 @@ func (ps *PoolScaler) calculateAverageUtilization() float64 {
 	if len(ps.stats.utilizationHistory) == 0 {
 		return 0.0
 	}
-	
+
 	var sum float64
 	for _, util := range ps.stats.utilizationHistory {
 		sum += util
 	}
-	
+
 	return sum / float64(len(ps.stats.utilizationHistory))
 }
 
@@ -199,7 +199,7 @@ func (ps *PoolScaler) performScaling(currentSize, targetSize int) {
 		action = "up"
 	}
 
-	log.Logger.Infof("Scaling %s from %d to %d workers (utilization: %.2f%%)", 
+	log.Logger.Infof("Scaling %s from %d to %d workers (utilization: %.2f%%)",
 		action, currentSize, targetSize, ps.stats.AverageUtilization*100)
 
 	err := ps.pool.SetSize(targetSize)
@@ -240,7 +240,7 @@ func (ps *PoolScaler) ForceScale() {
 	if !ps.IsRunning() {
 		return
 	}
-	
+
 	log.Logger.Info("Forcing scaling evaluation")
 	ps.evaluateScaling()
 }

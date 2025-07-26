@@ -12,12 +12,12 @@ import (
 
 // ResourceMonitor tracks system resource usage and enforces limits
 type ResourceMonitor struct {
-	limits   *ResourceLimits
-	ctx      context.Context
-	cancel   context.CancelFunc
-	running  int32
-	stats    ResourceStats
-	mu       sync.RWMutex
+	limits  *ResourceLimits
+	ctx     context.Context
+	cancel  context.CancelFunc
+	running int32
+	stats   ResourceStats
+	mu      sync.RWMutex
 }
 
 // ResourceStats tracks current resource usage
@@ -33,7 +33,7 @@ type ResourceStats struct {
 // NewResourceMonitor creates a new resource monitor
 func NewResourceMonitor(limits *ResourceLimits) *ResourceMonitor {
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	return &ResourceMonitor{
 		limits: limits,
 		ctx:    ctx,
@@ -87,10 +87,10 @@ func (rm *ResourceMonitor) updateStats() {
 
 	// Update memory usage (convert bytes to MB)
 	rm.stats.MemoryUsageMB = int64(mem.Alloc / 1024 / 1024)
-	
+
 	// Update goroutine count
 	rm.stats.ActiveGoroutines = runtime.NumGoroutine()
-	
+
 	// Update timestamp
 	rm.stats.LastCheckTime = time.Now()
 
@@ -119,7 +119,7 @@ func (rm *ResourceMonitor) isLimitExceeded() bool {
 func (rm *ResourceMonitor) CanAcceptJob() bool {
 	rm.mu.RLock()
 	defer rm.mu.RUnlock()
-	
+
 	return !rm.stats.LimitsExceeded
 }
 

@@ -14,8 +14,8 @@ import (
 // EnhancedWorkerPool extends WorkerPool with advanced features
 type EnhancedWorkerPool struct {
 	*WorkerPool
-	config           *PoolConfig
-	healthChecker    *HealthChecker
+	config          *PoolConfig
+	healthChecker   *HealthChecker
 	scaler          *PoolScaler
 	metrics         *PoolMetrics
 	resourceMonitor *ResourceMonitor
@@ -24,15 +24,15 @@ type EnhancedWorkerPool struct {
 
 // PoolConfig holds enhanced configuration for the worker pool
 type PoolConfig struct {
-	DefaultSize           int           `json:"default_size"`
-	MaxSize              int           `json:"max_size"`
-	MinSize              int           `json:"min_size"`
-	QueueSize            int           `json:"queue_size"`
-	HealthCheckInterval  time.Duration `json:"health_check_interval"`
-	ShutdownTimeout      time.Duration `json:"shutdown_timeout"`
-	TaskTimeout          time.Duration `json:"task_timeout"`
-	Scaling              ScalingConfig `json:"scaling"`
-	ResourceLimits       ResourceLimits `json:"resource_limits"`
+	DefaultSize         int            `json:"default_size"`
+	MaxSize             int            `json:"max_size"`
+	MinSize             int            `json:"min_size"`
+	QueueSize           int            `json:"queue_size"`
+	HealthCheckInterval time.Duration  `json:"health_check_interval"`
+	ShutdownTimeout     time.Duration  `json:"shutdown_timeout"`
+	TaskTimeout         time.Duration  `json:"task_timeout"`
+	Scaling             ScalingConfig  `json:"scaling"`
+	ResourceLimits      ResourceLimits `json:"resource_limits"`
 }
 
 // ScalingConfig defines auto-scaling behavior
@@ -46,10 +46,10 @@ type ScalingConfig struct {
 
 // ResourceLimits defines resource constraints
 type ResourceLimits struct {
-	MaxCPUPercent    float64 `json:"max_cpu_percent"`
-	MaxMemoryMB      int64   `json:"max_memory_mb"`
-	MaxGoroutines    int     `json:"max_goroutines"`
-	MaxQueueDepth    int     `json:"max_queue_depth"`
+	MaxCPUPercent float64 `json:"max_cpu_percent"`
+	MaxMemoryMB   int64   `json:"max_memory_mb"`
+	MaxGoroutines int     `json:"max_goroutines"`
+	MaxQueueDepth int     `json:"max_queue_depth"`
 }
 
 // DefaultPoolConfig returns default enhanced pool configuration
@@ -134,7 +134,7 @@ func (ewp *EnhancedWorkerPool) Stop() error {
 // SubmitJobWithPriority submits a job with priority handling
 func (ewp *EnhancedWorkerPool) SubmitJobWithPriority(execution *JobExecution, priority JobPriority) error {
 	execution.Job.SetPriority(priority)
-	
+
 	// Check resource limits before submission
 	if !ewp.resourceMonitor.CanAcceptJob() {
 		ewp.metrics.RecordRejection("resource_limit")
@@ -225,38 +225,38 @@ func (ewp *EnhancedWorkerPool) GetEnhancedStatus() *EnhancedPoolStatus {
 	resourceStats := ewp.resourceMonitor.GetStats()
 
 	return &EnhancedPoolStatus{
-		PoolStatus:      PoolStatus{
-			Size:            baseStats.TotalWorkers,
-			ActiveWorkers:   baseStats.ActiveWorkers,
-			QueueDepth:      baseStats.QueueSize,
-			ProcessedTasks:  ewp.metrics.ProcessedTasks,
-			FailedTasks:     ewp.metrics.FailedTasks,
+		PoolStatus: PoolStatus{
+			Size:           baseStats.TotalWorkers,
+			ActiveWorkers:  baseStats.ActiveWorkers,
+			QueueDepth:     baseStats.QueueSize,
+			ProcessedTasks: ewp.metrics.ProcessedTasks,
+			FailedTasks:    ewp.metrics.FailedTasks,
 		},
-		ResourceStats:   resourceStats,
-		HealthStats:     ewp.healthChecker.GetStats(),
-		ScalingStats:    ewp.scaler.GetStats(),
-		LastActivity:    time.Unix(atomic.LoadInt64(&ewp.lastActivity), 0),
-		UptimeSeconds:   time.Since(ewp.metrics.StartTime).Seconds(),
+		ResourceStats: resourceStats,
+		HealthStats:   ewp.healthChecker.GetStats(),
+		ScalingStats:  ewp.scaler.GetStats(),
+		LastActivity:  time.Unix(atomic.LoadInt64(&ewp.lastActivity), 0),
+		UptimeSeconds: time.Since(ewp.metrics.StartTime).Seconds(),
 	}
 }
 
 // EnhancedPoolStatus provides comprehensive pool status information
 type EnhancedPoolStatus struct {
-	PoolStatus      PoolStatus      `json:"pool_status"`
-	ResourceStats   ResourceStats   `json:"resource_stats"`
-	HealthStats     HealthStats     `json:"health_stats"`
-	ScalingStats    ScalingStats    `json:"scaling_stats"`
-	LastActivity    time.Time       `json:"last_activity"`
-	UptimeSeconds   float64         `json:"uptime_seconds"`
+	PoolStatus    PoolStatus    `json:"pool_status"`
+	ResourceStats ResourceStats `json:"resource_stats"`
+	HealthStats   HealthStats   `json:"health_stats"`
+	ScalingStats  ScalingStats  `json:"scaling_stats"`
+	LastActivity  time.Time     `json:"last_activity"`
+	UptimeSeconds float64       `json:"uptime_seconds"`
 }
 
 // PoolStatus represents basic pool status (matching issue requirements)
 type PoolStatus struct {
-	Size            int   `json:"size"`
-	ActiveWorkers   int   `json:"active_workers"`
-	QueueDepth      int   `json:"queue_depth"`
-	ProcessedTasks  int64 `json:"processed_tasks"`
-	FailedTasks     int64 `json:"failed_tasks"`
+	Size           int   `json:"size"`
+	ActiveWorkers  int   `json:"active_workers"`
+	QueueDepth     int   `json:"queue_depth"`
+	ProcessedTasks int64 `json:"processed_tasks"`
+	FailedTasks    int64 `json:"failed_tasks"`
 }
 
 // Priority constants for enhanced pool (using JobPriority type from types.go)
@@ -336,10 +336,10 @@ type TaskInterface interface {
 
 // TaskResult represents the result of task execution
 type TaskResult struct {
-	Success   bool          `json:"success"`
-	Duration  time.Duration `json:"duration"`
-	Error     error         `json:"error,omitempty"`
-	Data      interface{}   `json:"data,omitempty"`
+	Success  bool          `json:"success"`
+	Duration time.Duration `json:"duration"`
+	Error    error         `json:"error,omitempty"`
+	Data     interface{}   `json:"data,omitempty"`
 }
 
 // WorkerPoolInterface defines the enhanced interface from the issue requirements

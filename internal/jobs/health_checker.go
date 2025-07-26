@@ -22,18 +22,18 @@ type HealthChecker struct {
 
 // HealthStats tracks health monitoring statistics
 type HealthStats struct {
-	ChecksPerformed   int64     `json:"checks_performed"`
-	WorkersReplaced   int64     `json:"workers_replaced"`
-	HealthyWorkers    int       `json:"healthy_workers"`
-	UnhealthyWorkers  int       `json:"unhealthy_workers"`
-	LastCheckTime     time.Time `json:"last_check_time"`
-	AverageCheckTime  time.Duration `json:"average_check_time"`
+	ChecksPerformed  int64         `json:"checks_performed"`
+	WorkersReplaced  int64         `json:"workers_replaced"`
+	HealthyWorkers   int           `json:"healthy_workers"`
+	UnhealthyWorkers int           `json:"unhealthy_workers"`
+	LastCheckTime    time.Time     `json:"last_check_time"`
+	AverageCheckTime time.Duration `json:"average_check_time"`
 }
 
 // NewHealthChecker creates a new health checker
 func NewHealthChecker(pool *EnhancedWorkerPool, interval time.Duration) *HealthChecker {
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	return &HealthChecker{
 		pool:     pool,
 		interval: interval,
@@ -81,7 +81,7 @@ func (hc *HealthChecker) monitorLoop() {
 // performHealthCheck checks the health of all workers
 func (hc *HealthChecker) performHealthCheck() {
 	startTime := time.Now()
-	
+
 	hc.pool.mu.RLock()
 	workers := make([]*Worker, len(hc.pool.workers))
 	copy(workers, hc.pool.workers)
@@ -110,7 +110,7 @@ func (hc *HealthChecker) performHealthCheck() {
 	hc.stats.HealthyWorkers = healthyCount
 	hc.stats.UnhealthyWorkers = unhealthyCount
 	hc.stats.LastCheckTime = time.Now()
-	
+
 	// Update average check time
 	checkDuration := time.Since(startTime)
 	if hc.stats.ChecksPerformed == 1 {
@@ -119,8 +119,8 @@ func (hc *HealthChecker) performHealthCheck() {
 		// Exponential moving average
 		alpha := 0.1
 		hc.stats.AverageCheckTime = time.Duration(
-			float64(hc.stats.AverageCheckTime) * (1 - alpha) + 
-			float64(checkDuration) * alpha,
+			float64(hc.stats.AverageCheckTime)*(1-alpha) +
+				float64(checkDuration)*alpha,
 		)
 	}
 	hc.mu.Unlock()
@@ -137,13 +137,13 @@ func (hc *HealthChecker) isWorkerHealthy(worker *Worker) bool {
 	// - Check if worker has been stuck on the same task too long
 	// - Monitor worker resource usage
 	// - Send ping tasks to verify responsiveness
-	
+
 	// Basic check: worker should not be stuck in active state for too long
 	if worker.IsActive() {
 		// This is a simplified check - in production you'd want more sophisticated logic
 		return true
 	}
-	
+
 	return true // For now, assume workers are healthy unless proven otherwise
 }
 
@@ -151,7 +151,7 @@ func (hc *HealthChecker) isWorkerHealthy(worker *Worker) bool {
 func (hc *HealthChecker) shouldReplaceWorker(worker *Worker) bool {
 	// Decision logic for worker replacement
 	// In this simplified version, we replace workers that appear to be stuck
-	
+
 	// For now, we don't replace workers as the current implementation
 	// handles worker failures through panic recovery
 	return false
@@ -168,11 +168,11 @@ func (hc *HealthChecker) replaceWorker(oldWorker *Worker) {
 			// Create new worker
 			newWorker := NewWorker(i, hc.pool.jobQueue, hc.pool.WorkerPool)
 			hc.pool.workers[i] = newWorker
-			
+
 			// Start new worker
 			hc.pool.wg.Add(1)
 			go newWorker.Start()
-			
+
 			log.Logger.Warnf("Replaced unhealthy worker %d with new worker", i)
 			break
 		}
