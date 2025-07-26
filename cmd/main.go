@@ -10,6 +10,7 @@ import (
 	"github.com/brainless/PubDataHub/internal/datasource"
 	"github.com/brainless/PubDataHub/internal/datasource/hackernews"
 	"github.com/brainless/PubDataHub/internal/log"
+	"github.com/brainless/PubDataHub/internal/tui"
 	"github.com/spf13/cobra"
 )
 
@@ -45,13 +46,16 @@ func main() {
 func newRootCmd() *cobra.Command {
 	rootCmd := &cobra.Command{
 		Use:   "pubdatahub",
-		Short: "A CLI tool for downloading and querying public data sources",
-		Long: `PubDataHub is a command-line application that enables users to download 
-and query data from various public data sources. It supports multiple data sources 
-with different storage and querying mechanisms.
+		Short: "An interactive TUI for downloading and querying public data sources",
+		Long: `PubDataHub is an interactive terminal application that enables users to download 
+and query data from various public data sources. It provides a Claude Code-style interactive 
+interface where downloads happen in background workers while the UI remains responsive.
+
+When run without arguments, it starts in interactive TUI mode.
+CLI commands are still available for scripting and automation.
 
 Currently supported data sources:
-- Hacker News (planned)
+- Hacker News (stories, comments, and users)
 
 Future data sources:
 - Reddit, Twitter, and more`,
@@ -67,6 +71,20 @@ Future data sources:
 				return err
 			}
 			return nil
+		},
+		Run: func(cmd *cobra.Command, args []string) {
+			// If no subcommands are provided, start interactive TUI
+			if len(args) == 0 {
+				shell := tui.NewShell()
+				if err := shell.Run(); err != nil {
+					log.Logger.Errorf("Shell error: %v", err)
+					os.Exit(1)
+				}
+				return
+			}
+
+			// If we reach here, show help
+			cmd.Help()
 		},
 	}
 
