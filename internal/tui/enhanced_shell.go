@@ -9,17 +9,19 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/brainless/PubDataHub/internal/command"
 	"github.com/brainless/PubDataHub/internal/log"
 	"github.com/chzyer/readline"
 )
 
 // EnhancedShell represents the enhanced interactive shell with readline support
 type EnhancedShell struct {
-	*Shell      // Embed the original Shell
-	registry    *CommandRegistry
-	readline    *readline.Instance
-	historyFile string
-	prompt      string
+	*Shell           // Embed the original Shell
+	registry         *CommandRegistry
+	commandIntegration *command.ShellIntegration
+	readline         *readline.Instance
+	historyFile      string
+	prompt           string
 }
 
 // NewEnhancedShell creates a new enhanced shell instance
@@ -27,10 +29,17 @@ func NewEnhancedShell() (*EnhancedShell, error) {
 	// Create the base shell first
 	baseShell := NewShell()
 
+	// Create command integration
+	commandIntegration := command.NewShellIntegration()
+	if err := commandIntegration.RegisterApplicationCommands(); err != nil {
+		log.Logger.Warnf("Failed to register application commands: %v", err)
+	}
+
 	shell := &EnhancedShell{
-		Shell:    baseShell,
-		registry: NewCommandRegistry(),
-		prompt:   "> ",
+		Shell:              baseShell,
+		registry:           NewCommandRegistry(),
+		commandIntegration: commandIntegration,
+		prompt:             "> ",
 	}
 
 	// Set up history file
@@ -76,7 +85,73 @@ func (s *EnhancedShell) initReadline() error {
 
 // createCompleter creates the tab completion handler
 func (s *EnhancedShell) createCompleter() readline.AutoCompleter {
-	return readline.NewPrefixCompleter(s.buildCompletionTree()...)
+	// Create a custom completer that uses our new command system
+	return &CustomCompleter{shell: s}
+}
+
+// CustomCompleter implements readline.AutoCompleter
+type CustomCompleter struct {
+	shell *EnhancedShell
+}
+
+// Do implements the readline.AutoCompleter interface
+func (cc *CustomCompleter) Do(line []rune, pos int) (newLine [][]rune, length int) {
+	lineStr := string(line[:pos])
+	
+	// Get completions from new command system
+	completions := cc.shell.commandIntegration.GetCompletions(
+		cc.shell.Shell.ctx,
+		lineStr,
+		cc.shell.Shell.jobManager,
+		cc.shell.Shell.dataSources,
+		nil, // config
+	)
+	
+	// If no completions from new system, try legacy
+	if len(completions) == 0 {
+		completions = cc.getLegacyCompletions(lineStr)
+	}
+	
+	// Convert to readline format
+	var newLines [][]rune
+	for _, completion := range completions {
+		newLines = append(newLines, []rune(completion))
+	}
+	
+	// Calculate how much of the current word to replace
+	words := strings.Fields(lineStr)
+	if len(words) > 0 && !strings.HasSuffix(lineStr, " ") {
+		length = len(words[len(words)-1])
+	}
+	
+	return newLines, length
+}
+
+// getLegacyCompletions gets completions from the legacy system
+func (cc *CustomCompleter) getLegacyCompletions(input string) []string {
+	parts := strings.Fields(input)
+	if len(parts) == 0 {
+		return cc.shell.registry.GetCompletions("")
+	}
+	
+	if len(parts) == 1 && !strings.HasSuffix(input, " ") {
+		return cc.shell.registry.GetCompletions(parts[0])
+	}
+	
+	// For argument completions, use the handler's completion method
+	if len(parts) > 0 {
+		if handler, exists := cc.shell.registry.Get(parts[0]); exists {
+			partial := ""
+			args := parts[1:]
+			if !strings.HasSuffix(input, " ") && len(parts) > 1 {
+				partial = parts[len(parts)-1]
+				args = parts[1 : len(parts)-1]
+			}
+			return handler.GetCompletions(partial, args)
+		}
+	}
+	
+	return []string{}
 }
 
 // buildCompletionTree builds the completion tree for all commands
@@ -263,8 +338,27 @@ func (s *EnhancedShell) handleMultiLineInput(initialInput string) (string, error
 	return strings.Join(lines, " "), nil
 }
 
-// processCommand handles individual commands using the registry
+// processCommand handles individual commands using the enhanced command system
 func (s *EnhancedShell) processCommand(input string) error {
+	// Try the new command system first
+	err := s.commandIntegration.ProcessCommand(
+		s.Shell.ctx,
+		input,
+		s.Shell.jobManager,
+		s.Shell.dataSources,
+		nil, // config - could be added later
+	)
+	
+	// If command not found in new system, fall back to old registry
+	if err != nil && strings.Contains(err.Error(), "not fully implemented yet") {
+		return s.processLegacyCommand(input)
+	}
+	
+	return err
+}
+
+// processLegacyCommand handles commands using the legacy registry
+func (s *EnhancedShell) processLegacyCommand(input string) error {
 	parts := strings.Fields(input)
 	if len(parts) == 0 {
 		return nil
