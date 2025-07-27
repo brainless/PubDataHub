@@ -3,17 +3,14 @@ package progress
 import (
 	"context"
 	"os"
-	"time"
 
 	"github.com/brainless/PubDataHub/internal/datasource"
-	"github.com/brainless/PubDataHub/internal/download"
 	"github.com/brainless/PubDataHub/internal/jobs"
 )
 
 // ProgressIntegration provides a simple integration layer for progress tracking
 type ProgressIntegration struct {
 	progressTracker *ProgressTracker
-	downloadManager *download.DownloadManager
 	statusDisplay   *StatusDisplayImpl
 }
 
@@ -25,12 +22,8 @@ func NewProgressIntegration(jobManager jobs.JobManager, dataSources map[string]d
 	// Create status display
 	statusDisplay := NewStatusDisplay(os.Stdout)
 
-	// Create download manager
-	downloadManager := download.NewDownloadManager(jobManager, progressTracker, dataSources)
-
 	return &ProgressIntegration{
 		progressTracker: progressTracker,
-		downloadManager: downloadManager,
 		statusDisplay:   statusDisplay,
 	}
 }
@@ -45,14 +38,6 @@ func (pi *ProgressIntegration) StartBackgroundUpdates(ctx context.Context) {
 			pi.statusDisplay.ShowProgress(progress)
 		}
 	})
-
-	// Start periodic status updates from data sources
-	go pi.downloadManager.StartPeriodicStatusUpdates(ctx, 5*time.Second)
-}
-
-// GetDownloadManager returns the download manager
-func (pi *ProgressIntegration) GetDownloadManager() *download.DownloadManager {
-	return pi.downloadManager
 }
 
 // GetProgressTracker returns the progress tracker

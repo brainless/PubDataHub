@@ -69,9 +69,9 @@ type DownloadManagerInterface interface {
 
 // ProgressUpdateEvent represents a progress update event
 type ProgressUpdateEvent struct {
-	JobID     string             `json:"job_id"`
-	Progress  progress.Progress  `json:"progress"`
-	Timestamp time.Time          `json:"timestamp"`
+	JobID     string      `json:"job_id"`
+	Progress  interface{} `json:"progress"`
+	Timestamp time.Time   `json:"timestamp"`
 }
 
 // StatusUpdateEvent represents a status update event

@@ -142,13 +142,17 @@ func (dm *DownloadManager) StopDownload(jobID string) error {
 }
 
 // GetProgress returns progress for a specific download
-func (dm *DownloadManager) GetProgress(jobID string) (progress.Progress, error) {
+func (dm *DownloadManager) GetProgress(jobID string) (interface{}, error) {
 	return dm.progressTracker.GetProgress(jobID)
 }
 
 // GetAllProgress returns progress for all active downloads
-func (dm *DownloadManager) GetAllProgress() map[string]progress.Progress {
-	return dm.progressTracker.GetAllProgress()
+func (dm *DownloadManager) GetAllProgress() map[string]interface{} {
+	result := make(map[string]interface{})
+	for id, progress := range dm.progressTracker.GetAllProgress() {
+		result[id] = progress
+	}
+	return result
 }
 
 // GetDownloadJob returns download job information
@@ -183,7 +187,7 @@ func (dm *DownloadManager) RegisterProgressCallback(callback progress.ProgressCa
 }
 
 // GetSystemStatus returns comprehensive system status
-func (dm *DownloadManager) GetSystemStatus() (progress.SystemStatus, error) {
+func (dm *DownloadManager) GetSystemStatus() (interface{}, error) {
 	// Get job manager stats
 	managerStats := dm.jobManager.GetStats()
 
@@ -198,14 +202,8 @@ func (dm *DownloadManager) GetSystemStatus() (progress.SystemStatus, error) {
 			IsDownloading: status.IsActive,
 		}
 
-		// Add progress if downloading
-		if status.IsActive {
-			if prog, err := dm.progressTracker.GetProgress(status.Status); err == nil {
-				dsStatus := dataSourceStatuses[name]
-				dsStatus.DownloadProgress = &prog
-				dataSourceStatuses[name] = dsStatus
-			}
-		}
+		// Add progress if downloading - would need job ID mapping for this
+		// For now, just track basic status
 	}
 
 	return progress.SystemStatus{
