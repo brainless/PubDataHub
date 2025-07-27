@@ -70,7 +70,7 @@ func (sd *StatusDisplayImpl) ShowMultipleProgress(progresses []Progress) error {
 	defer sd.mu.Unlock()
 
 	var output strings.Builder
-	
+
 	switch sd.displayMode {
 	case DisplayModeCompact:
 		output.WriteString(sd.formatCompactMultiple(progresses))
@@ -109,7 +109,7 @@ func (sd *StatusDisplayImpl) ShowSystemStatus(status SystemStatus) error {
 func (sd *StatusDisplayImpl) ClearDisplay() error {
 	sd.mu.Lock()
 	defer sd.mu.Unlock()
-	
+
 	sd.lastOutput = ""
 	_, err := fmt.Fprint(sd.writer, "\033[2J\033[H") // ANSI clear screen
 	return err
@@ -136,7 +136,7 @@ func (sd *StatusDisplayImpl) formatCompactProgress(progress Progress) string {
 	if progress.ETA != nil {
 		eta = sd.formatDuration(*progress.ETA)
 	}
-	
+
 	return fmt.Sprintf("%s: [%s] %.1f%% (%d/%d) | ETA: %s | %.1f/s\n",
 		progress.JobID,
 		bar,
@@ -155,9 +155,9 @@ func (sd *StatusDisplayImpl) formatDetailedProgress(progress Progress) string {
 	if progress.ETA != nil {
 		eta = sd.formatDuration(*progress.ETA)
 	}
-	
+
 	elapsed := time.Since(progress.StartTime)
-	
+
 	return fmt.Sprintf(`Download: %s
 Progress: [%s] %.1f%% (%d/%d)
 Started:  %s ago
@@ -166,7 +166,7 @@ Rate:     %.1f items/sec
 Status:   %s
 Updated:  %s
 
-`, 
+`,
 		progress.JobID,
 		bar,
 		progress.Percentage,
@@ -189,37 +189,37 @@ func (sd *StatusDisplayImpl) formatQuietProgress(progress Progress) string {
 func (sd *StatusDisplayImpl) formatCompactMultiple(progresses []Progress) string {
 	var output strings.Builder
 	output.WriteString("Active Downloads:\n")
-	
+
 	for _, progress := range progresses {
 		output.WriteString("  ")
 		output.WriteString(sd.formatCompactProgress(progress))
 	}
-	
+
 	return output.String()
 }
 
 // formatDetailedMultiple formats multiple progress entries in detailed mode
 func (sd *StatusDisplayImpl) formatDetailedMultiple(progresses []Progress) string {
 	var output strings.Builder
-	
+
 	for i, progress := range progresses {
 		if i > 0 {
 			output.WriteString("---\n")
 		}
 		output.WriteString(sd.formatDetailedProgress(progress))
 	}
-	
+
 	return output.String()
 }
 
 // formatDashboard formats progress entries in dashboard mode
 func (sd *StatusDisplayImpl) formatDashboard(progresses []Progress) string {
 	var output strings.Builder
-	
+
 	output.WriteString("╔══════════════════════════════════════════════════════════════╗\n")
 	output.WriteString("║                        Download Dashboard                     ║\n")
 	output.WriteString("╠══════════════════════════════════════════════════════════════╣\n")
-	
+
 	if len(progresses) == 0 {
 		output.WriteString("║ No active downloads                                          ║\n")
 	} else {
@@ -234,7 +234,7 @@ func (sd *StatusDisplayImpl) formatDashboard(progresses []Progress) string {
 			output.WriteString(line)
 		}
 	}
-	
+
 	output.WriteString("╚══════════════════════════════════════════════════════════════╝\n")
 	return output.String()
 }
@@ -244,17 +244,17 @@ func (sd *StatusDisplayImpl) formatQuiet(progresses []Progress) string {
 	if len(progresses) == 0 {
 		return ""
 	}
-	
+
 	var output strings.Builder
 	output.WriteString("Downloads: ")
-	
+
 	for i, progress := range progresses {
 		if i > 0 {
 			output.WriteString(", ")
 		}
 		output.WriteString(fmt.Sprintf("%s:%.1f%%", progress.JobID, progress.Percentage))
 	}
-	
+
 	output.WriteString("\n")
 	return output.String()
 }
@@ -262,19 +262,19 @@ func (sd *StatusDisplayImpl) formatQuiet(progresses []Progress) string {
 // formatSystemStatus formats system status information
 func (sd *StatusDisplayImpl) formatSystemStatus(status SystemStatus) string {
 	var output strings.Builder
-	
+
 	output.WriteString("System Status:\n")
 	output.WriteString(fmt.Sprintf("  Jobs: %d active, %d queued, %d completed, %d failed\n",
 		status.ActiveJobs, status.QueuedJobs, status.CompletedJobs, status.FailedJobs))
-	
+
 	output.WriteString(fmt.Sprintf("  Database: %d total records\n", status.DatabaseInfo.TotalRecords))
-	
+
 	output.WriteString(fmt.Sprintf("  Workers: %d/%d active (%d idle), queue: %d\n",
 		status.WorkerStatus.ActiveWorkers,
 		status.WorkerStatus.TotalWorkers,
 		status.WorkerStatus.IdleWorkers,
 		status.WorkerStatus.QueueSize))
-	
+
 	if len(status.DataSources) > 0 {
 		output.WriteString("  Data Sources:\n")
 		for name, ds := range status.DataSources {
@@ -285,9 +285,9 @@ func (sd *StatusDisplayImpl) formatSystemStatus(status SystemStatus) string {
 			output.WriteString(fmt.Sprintf("    %s: %d records%s\n", name, ds.TotalRecords, downloadStatus))
 		}
 	}
-	
+
 	output.WriteString(fmt.Sprintf("  Last Updated: %s\n", status.LastUpdate.Format("15:04:05")))
-	
+
 	return output.String()
 }
 
@@ -296,12 +296,12 @@ func (sd *StatusDisplayImpl) createProgressBar(percentage float64, width int) st
 	if width <= 0 {
 		return ""
 	}
-	
+
 	filled := int(percentage / 100.0 * float64(width))
 	if filled > width {
 		filled = width
 	}
-	
+
 	var bar strings.Builder
 	for i := 0; i < filled; i++ {
 		bar.WriteString("█")
@@ -309,7 +309,7 @@ func (sd *StatusDisplayImpl) createProgressBar(percentage float64, width int) st
 	for i := filled; i < width; i++ {
 		bar.WriteString("░")
 	}
-	
+
 	return bar.String()
 }
 

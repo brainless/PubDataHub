@@ -71,22 +71,22 @@ type ProgressCallback func(progress Progress)
 
 // SystemStatus represents overall system status
 type SystemStatus struct {
-	ActiveJobs    int                        `json:"active_jobs"`
-	QueuedJobs    int                        `json:"queued_jobs"`
-	CompletedJobs int64                      `json:"completed_jobs"`
-	FailedJobs    int64                      `json:"failed_jobs"`
-	DatabaseInfo  DatabaseStatus             `json:"database_info"`
-	WorkerStatus  WorkerPoolStatus           `json:"worker_status"`
-	ResourceUsage ResourceStatus             `json:"resource_usage"`
-	LastUpdate    time.Time                  `json:"last_update"`
+	ActiveJobs    int                         `json:"active_jobs"`
+	QueuedJobs    int                         `json:"queued_jobs"`
+	CompletedJobs int64                       `json:"completed_jobs"`
+	FailedJobs    int64                       `json:"failed_jobs"`
+	DatabaseInfo  DatabaseStatus              `json:"database_info"`
+	WorkerStatus  WorkerPoolStatus            `json:"worker_status"`
+	ResourceUsage ResourceStatus              `json:"resource_usage"`
+	LastUpdate    time.Time                   `json:"last_update"`
 	DataSources   map[string]DataSourceStatus `json:"data_sources"`
 }
 
 // DatabaseStatus represents database status information
 type DatabaseStatus struct {
-	TotalRecords int64                      `json:"total_records"`
-	DatabaseSize int64                      `json:"database_size"`
-	LastSync     time.Time                  `json:"last_sync"`
+	TotalRecords int64     `json:"total_records"`
+	DatabaseSize int64     `json:"database_size"`
+	LastSync     time.Time `json:"last_sync"`
 }
 
 // WorkerPoolStatus represents worker pool status
@@ -99,18 +99,18 @@ type WorkerPoolStatus struct {
 
 // ResourceStatus represents system resource usage
 type ResourceStatus struct {
-	CPUPercent    float64 `json:"cpu_percent"`
-	MemoryUsageMB int64   `json:"memory_usage_mb"`
-	DiskUsageMB   int64   `json:"disk_usage_mb"`
+	CPUPercent         float64 `json:"cpu_percent"`
+	MemoryUsageMB      int64   `json:"memory_usage_mb"`
+	DiskUsageMB        int64   `json:"disk_usage_mb"`
 	NetworkBytesPerSec float64 `json:"network_bytes_per_sec"`
 }
 
 // DataSourceStatus represents status of a specific data source
 type DataSourceStatus struct {
-	Name          string    `json:"name"`
-	TotalRecords  int64     `json:"total_records"`
-	LastUpdate    time.Time `json:"last_update"`
-	IsDownloading bool      `json:"is_downloading"`
+	Name             string    `json:"name"`
+	TotalRecords     int64     `json:"total_records"`
+	LastUpdate       time.Time `json:"last_update"`
+	IsDownloading    bool      `json:"is_downloading"`
 	DownloadProgress *Progress `json:"download_progress,omitempty"`
 }
 
@@ -137,12 +137,12 @@ type StatusDisplay interface {
 
 // DownloadConfig holds configuration for a download operation
 type DownloadConfig struct {
-	BatchSize    int    `json:"batch_size"`
-	Priority     int    `json:"priority"`     // 1=low, 5=normal, 10=high
-	Resume       bool   `json:"resume"`       // Resume from last position
-	MaxRetries   int    `json:"max_retries"`  // Maximum retry attempts
-	Timeout      int    `json:"timeout"`      // Timeout in seconds
-	RateLimit    int    `json:"rate_limit"`   // Items per second limit
+	BatchSize  int  `json:"batch_size"`
+	Priority   int  `json:"priority"`    // 1=low, 5=normal, 10=high
+	Resume     bool `json:"resume"`      // Resume from last position
+	MaxRetries int  `json:"max_retries"` // Maximum retry attempts
+	Timeout    int  `json:"timeout"`     // Timeout in seconds
+	RateLimit  int  `json:"rate_limit"`  // Items per second limit
 }
 
 // DefaultDownloadConfig returns a default download configuration

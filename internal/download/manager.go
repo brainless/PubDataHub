@@ -269,17 +269,17 @@ func (dm *DownloadManager) updateProgressFromDataSources() {
 	for jobID, downloadJob := range activeJobs {
 		if ds, exists := dm.dataSources[downloadJob.DataSource]; exists {
 			status := ds.GetDownloadStatus()
-			
+
 			// Update progress if total is known
 			if status.ItemsTotal > 0 {
 				dm.progressTracker.SetTotal(jobID, status.ItemsTotal)
 			}
-			
+
 			// Update current progress
 			if status.ItemsCached >= 0 {
 				dm.progressTracker.UpdateProgress(jobID, status.ItemsCached, status.Status)
 			}
-			
+
 			// Update download job status
 			if status.IsActive {
 				downloadJob.Status = DownloadStatusRunning

@@ -18,12 +18,12 @@ import (
 
 // Shell represents the interactive TUI shell
 type Shell struct {
-	ctx               context.Context
-	cancel            context.CancelFunc
-	jobManager        *jobs.EnhancedJobManager
-	dataSources       map[string]datasource.DataSource
-	reader            *bufio.Scanner
-	progressDisplay   *SimpleProgressDisplay
+	ctx             context.Context
+	cancel          context.CancelFunc
+	jobManager      *jobs.EnhancedJobManager
+	dataSources     map[string]datasource.DataSource
+	reader          *bufio.Scanner
+	progressDisplay *SimpleProgressDisplay
 }
 
 // NewShell creates a new interactive shell instance
@@ -53,7 +53,7 @@ func NewShell() *Shell {
 		if err := shell.jobManager.Start(); err != nil {
 			log.Logger.Errorf("Failed to start job manager: %v", err)
 		}
-		
+
 		// Initialize simple progress display
 		shell.progressDisplay = NewSimpleProgressDisplay(enhancedJobManager, shell.dataSources)
 	}
@@ -195,7 +195,7 @@ func (s *Shell) handleDownloadCommand(args []string) error {
 	if s.jobManager == nil {
 		return fmt.Errorf("job manager not available")
 	}
-	
+
 	if s.progressDisplay == nil {
 		return fmt.Errorf("progress display not available")
 	}
@@ -205,7 +205,7 @@ func (s *Shell) handleDownloadCommand(args []string) error {
 	}
 
 	sourceName := args[0]
-	
+
 	// Use the simple progress display for enhanced progress tracking
 	return s.progressDisplay.StartDownloadWithProgress(sourceName, args[1:])
 }
@@ -476,4 +476,3 @@ func (s *Shell) shutdown() error {
 	fmt.Println("Goodbye!")
 	return nil
 }
-

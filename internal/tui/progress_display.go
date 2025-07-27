@@ -29,7 +29,7 @@ func NewSimpleProgressDisplay(jobManager jobs.JobManager, dataSources map[string
 func (spd *SimpleProgressDisplay) StartDownloadWithProgress(sourceName string, args []string) error {
 	// Parse download configuration
 	config := spd.parseDownloadConfig(args)
-	
+
 	// Check if data source exists
 	ds, exists := spd.dataSources[sourceName]
 	if !exists {
@@ -53,21 +53,21 @@ func (spd *SimpleProgressDisplay) StartDownloadWithProgress(sourceName string, a
 	}
 
 	fmt.Printf("Started download job %s for %s\n", jobID, sourceName)
-	
+
 	// Show progress monitoring
 	go spd.monitorProgress(jobID, sourceName)
-	
+
 	return nil
 }
 
 // DownloadConfig holds configuration for a download operation
 type DownloadConfig struct {
-	BatchSize    int
-	Priority     int
-	Resume       bool
-	MaxRetries   int
-	Timeout      int
-	RateLimit    int
+	BatchSize  int
+	Priority   int
+	Resume     bool
+	MaxRetries int
+	Timeout    int
+	RateLimit  int
 }
 
 // parseDownloadConfig parses download configuration from command arguments
@@ -80,7 +80,7 @@ func (spd *SimpleProgressDisplay) parseDownloadConfig(args []string) DownloadCon
 		Timeout:    300,
 		RateLimit:  0,
 	}
-	
+
 	for _, arg := range args {
 		switch {
 		case strings.HasPrefix(arg, "--batch-size="):
@@ -104,7 +104,7 @@ func (spd *SimpleProgressDisplay) parseDownloadConfig(args []string) DownloadCon
 			}
 		}
 	}
-	
+
 	return config
 }
 
@@ -158,13 +158,13 @@ func (spd *SimpleProgressDisplay) displayProgress(jobID string, status datasourc
 	// Create a simple progress bar
 	barWidth := 30
 	filledWidth := int(progress / 100.0 * float64(barWidth))
-	
+
 	bar := strings.Repeat("█", filledWidth) + strings.Repeat("░", barWidth-filledWidth)
-	
+
 	// Clear the line and display progress
-	fmt.Printf("\r%s: [%s] %.1f%% (%d/%d)", 
+	fmt.Printf("\r%s: [%s] %.1f%% (%d/%d)",
 		jobID, bar, progress, status.ItemsCached, status.ItemsTotal)
-	
+
 	// Flush the output
 	os.Stdout.Sync()
 }

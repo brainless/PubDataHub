@@ -4,7 +4,6 @@ import (
 	"time"
 )
 
-
 // DownloadStatus represents the status of a download operation
 type DownloadStatus string
 
@@ -17,7 +16,7 @@ const (
 	DownloadStatusCancelled DownloadStatus = "cancelled"
 )
 
-// DownloadJob represents a download operation  
+// DownloadJob represents a download operation
 type DownloadJob struct {
 	ID           string         `json:"id"`
 	DataSource   string         `json:"data_source"`
@@ -76,8 +75,8 @@ type ProgressUpdateEvent struct {
 
 // StatusUpdateEvent represents a status update event
 type StatusUpdateEvent struct {
-	JobID     string             `json:"job_id"`
-	Status    DownloadStatus     `json:"status"`
-	Message   string             `json:"message"`
-	Timestamp time.Time          `json:"timestamp"`
+	JobID     string         `json:"job_id"`
+	Status    DownloadStatus `json:"status"`
+	Message   string         `json:"message"`
+	Timestamp time.Time      `json:"timestamp"`
 }
