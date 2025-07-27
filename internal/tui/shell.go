@@ -18,11 +18,12 @@ import (
 
 // Shell represents the interactive TUI shell
 type Shell struct {
-	ctx         context.Context
-	cancel      context.CancelFunc
-	jobManager  *jobs.EnhancedJobManager
-	dataSources map[string]datasource.DataSource
-	reader      *bufio.Scanner
+	ctx             context.Context
+	cancel          context.CancelFunc
+	jobManager      *jobs.EnhancedJobManager
+	dataSources     map[string]datasource.DataSource
+	reader          *bufio.Scanner
+	progressDisplay *SimpleProgressDisplay
 }
 
 // NewShell creates a new interactive shell instance
@@ -52,6 +53,9 @@ func NewShell() *Shell {
 		if err := shell.jobManager.Start(); err != nil {
 			log.Logger.Errorf("Failed to start job manager: %v", err)
 		}
+
+		// Initialize simple progress display
+		shell.progressDisplay = NewSimpleProgressDisplay(enhancedJobManager, shell.dataSources)
 	}
 
 	return shell
@@ -192,23 +196,18 @@ func (s *Shell) handleDownloadCommand(args []string) error {
 		return fmt.Errorf("job manager not available")
 	}
 
+	if s.progressDisplay == nil {
+		return fmt.Errorf("progress display not available")
+	}
+
 	if len(args) == 0 {
 		return fmt.Errorf("download command requires a data source name")
 	}
 
 	sourceName := args[0]
-	ds, exists := s.dataSources[sourceName]
-	if !exists {
-		return fmt.Errorf("unknown data source: %s", sourceName)
-	}
 
-	// Create and start a download job
-	jobID, err := s.jobManager.StartDownloadJob(sourceName, ds)
-	if err != nil {
-		return fmt.Errorf("failed to start download job: %w", err)
-	}
-	fmt.Printf("Started download job %s for %s\n", jobID, sourceName)
-	return nil
+	// Use the simple progress display for enhanced progress tracking
+	return s.progressDisplay.StartDownloadWithProgress(sourceName, args[1:])
 }
 
 // handleQueryCommand processes query commands

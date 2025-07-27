@@ -33,9 +33,9 @@ jobs:
         fi
         
     - name: Check PR description
+      env:
+        PR_BODY: ${{ github.event.pull_request.body }}
       run: |
-        PR_BODY='${{ github.event.pull_request.body }}'
-        
         if [ -z "$PR_BODY" ]; then
           echo "❌ PR description is empty. Please provide a description."
           exit 1
