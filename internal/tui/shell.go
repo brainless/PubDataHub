@@ -6,17 +6,14 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"strconv"
 	"strings"
 	"syscall"
-	"time"
 
 	"github.com/brainless/PubDataHub/internal/config"
 	"github.com/brainless/PubDataHub/internal/datasource"
 	"github.com/brainless/PubDataHub/internal/datasource/hackernews"
 	"github.com/brainless/PubDataHub/internal/jobs"
 	"github.com/brainless/PubDataHub/internal/log"
-	"github.com/brainless/PubDataHub/internal/progress"
 )
 
 // Shell represents the interactive TUI shell
@@ -26,7 +23,7 @@ type Shell struct {
 	jobManager        *jobs.EnhancedJobManager
 	dataSources       map[string]datasource.DataSource
 	reader            *bufio.Scanner
-	progressIntegration *progress.ProgressIntegration
+	progressDisplay   *SimpleProgressDisplay
 }
 
 // NewShell creates a new interactive shell instance
@@ -57,11 +54,8 @@ func NewShell() *Shell {
 			log.Logger.Errorf("Failed to start job manager: %v", err)
 		}
 		
-		// Initialize progress integration
-		shell.progressIntegration = progress.NewProgressIntegration(enhancedJobManager, shell.dataSources)
-		
-		// Start background progress updates
-		go shell.progressIntegration.StartBackgroundUpdates(shell.ctx)
+		// Initialize simple progress display
+		shell.progressDisplay = NewSimpleProgressDisplay(enhancedJobManager, shell.dataSources)
 	}
 
 	return shell
@@ -202,8 +196,8 @@ func (s *Shell) handleDownloadCommand(args []string) error {
 		return fmt.Errorf("job manager not available")
 	}
 	
-	if s.progressIntegration == nil {
-		return fmt.Errorf("progress integration not available")
+	if s.progressDisplay == nil {
+		return fmt.Errorf("progress display not available")
 	}
 
 	if len(args) == 0 {
@@ -211,30 +205,9 @@ func (s *Shell) handleDownloadCommand(args []string) error {
 	}
 
 	sourceName := args[0]
-	_, exists := s.dataSources[sourceName]
-	if !exists {
-		return fmt.Errorf("unknown data source: %s", sourceName)
-	}
-
-	// Use the download manager for enhanced progress tracking
-	downloadManager := s.progressIntegration.GetDownloadManager()
 	
-	// Parse download configuration from args
-	config := s.parseDownloadConfig(args[1:])
-	
-	// Start the download with progress tracking
-	jobID, err := downloadManager.StartDownload(sourceName, config)
-	if err != nil {
-		return fmt.Errorf("failed to start download job: %w", err)
-	}
-	
-	fmt.Printf("Started download job %s for %s\n", jobID, sourceName)
-	fmt.Printf("Use 'jobs status %s' to monitor progress\n", jobID)
-	
-	// Show initial progress
-	go s.showLiveProgress(jobID)
-	
-	return nil
+	// Use the simple progress display for enhanced progress tracking
+	return s.progressDisplay.StartDownloadWithProgress(sourceName, args[1:])
 }
 
 // handleQueryCommand processes query commands
@@ -504,71 +477,3 @@ func (s *Shell) shutdown() error {
 	return nil
 }
 
-// parseDownloadConfig parses download configuration from command arguments
-func (s *Shell) parseDownloadConfig(args []string) progress.DownloadConfig {
-	config := progress.DefaultDownloadConfig()
-	
-	for _, arg := range args {
-		switch {
-		case strings.HasPrefix(arg, "--batch-size="):
-			if size, err := strconv.Atoi(strings.TrimPrefix(arg, "--batch-size=")); err == nil {
-				config.BatchSize = size
-			}
-		case strings.HasPrefix(arg, "--priority="):
-			if priority, err := strconv.Atoi(strings.TrimPrefix(arg, "--priority=")); err == nil {
-				config.Priority = priority
-			}
-		case arg == "--resume":
-			config.Resume = true
-		case strings.HasPrefix(arg, "--max-retries="):
-			if retries, err := strconv.Atoi(strings.TrimPrefix(arg, "--max-retries=")); err == nil {
-				config.MaxRetries = retries
-			}
-		default:
-			// Try to parse as batch size if it's a number
-			if size, err := strconv.Atoi(arg); err == nil {
-				config.BatchSize = size
-			}
-		}
-	}
-	
-	return config
-}
-
-// showLiveProgress displays live progress for a download job
-func (s *Shell) showLiveProgress(jobID string) {
-	if s.progressIntegration == nil {
-		return
-	}
-
-	downloadManager := s.progressIntegration.GetDownloadManager()
-	statusDisplay := s.progressIntegration.GetStatusDisplay()
-	
-	ticker := time.NewTicker(2 * time.Second)
-	defer ticker.Stop()
-	
-	for {
-		select {
-		case <-s.ctx.Done():
-			return
-		case <-ticker.C:
-			// Get current progress
-			if progress, err := downloadManager.GetProgress(jobID); err == nil {
-				// Only show progress if job is still active
-				if job, err := downloadManager.GetDownloadJob(jobID); err == nil && job.IsActive() {
-					fmt.Print("\r") // Return to beginning of line
-					statusDisplay.ShowProgress(progress)
-				} else {
-					// Job finished, show final status
-					if job != nil && job.IsFinished() {
-						fmt.Printf("\nDownload %s: %s\n", jobID, string(job.Status))
-					}
-					return
-				}
-			} else {
-				// Progress not found, job might be finished
-				return
-			}
-		}
-	}
-}

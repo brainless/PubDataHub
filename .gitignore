@@ -17,6 +17,7 @@ go.work
 
 # Compiled binary
 pubdatahub
+main
 
 # Dependency directories (remove the comment below to include it)
 # vendor/
