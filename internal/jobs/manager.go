@@ -597,3 +597,142 @@ func (m *Manager) cleanupRoutine() {
 		}
 	}
 }
+
+// Shutdown methods for graceful shutdown support
+
+// PauseAllJobs pauses all currently running jobs
+func (m *Manager) PauseAllJobs() error {
+	m.jobsMux.RLock()
+	var runningJobIDs []string
+	for id, status := range m.jobs {
+		if status.State == JobStateRunning {
+			runningJobIDs = append(runningJobIDs, id)
+		}
+	}
+	m.jobsMux.RUnlock()
+
+	log.Logger.Infof("Pausing %d running jobs", len(runningJobIDs))
+
+	var errors []error
+	for _, jobID := range runningJobIDs {
+		if err := m.PauseJob(jobID); err != nil {
+			errors = append(errors, fmt.Errorf("failed to pause job %s: %w", jobID, err))
+		}
+	}
+
+	if len(errors) > 0 {
+		return fmt.Errorf("failed to pause some jobs: %v", errors)
+	}
+
+	return nil
+}
+
+// SaveJobStates saves all job states to persistence
+func (m *Manager) SaveJobStates() error {
+	m.jobsMux.RLock()
+	defer m.jobsMux.RUnlock()
+
+	var errors []error
+	for _, status := range m.jobs {
+		if err := m.persistence.SaveJob(status); err != nil {
+			errors = append(errors, fmt.Errorf("failed to save job %s: %w", status.ID, err))
+		}
+	}
+
+	if len(errors) > 0 {
+		return fmt.Errorf("failed to save some job states: %v", errors)
+	}
+
+	log.Logger.Infof("Saved states for %d jobs", len(m.jobs))
+	return nil
+}
+
+// GetRunningJobs returns IDs of all running jobs
+func (m *Manager) GetRunningJobs() []string {
+	m.jobsMux.RLock()
+	defer m.jobsMux.RUnlock()
+
+	var runningJobs []string
+	for id, status := range m.jobs {
+		if status.State == JobStateRunning {
+			runningJobs = append(runningJobs, id)
+		}
+	}
+
+	return runningJobs
+}
+
+// Recovery methods for application restart support
+
+// LoadJobStates loads job states from persistence
+func (m *Manager) LoadJobStates() error {
+	// This functionality already exists in loadExistingJobs()
+	return m.loadExistingJobs()
+}
+
+// ResumeJobs resumes a list of jobs by ID
+func (m *Manager) ResumeJobs(jobIDs []string) error {
+	var errors []error
+	for _, jobID := range jobIDs {
+		if err := m.ResumeJob(jobID); err != nil {
+			errors = append(errors, fmt.Errorf("failed to resume job %s: %w", jobID, err))
+		}
+	}
+
+	if len(errors) > 0 {
+		return fmt.Errorf("failed to resume some jobs: %v", errors)
+	}
+
+	log.Logger.Infof("Resumed %d jobs", len(jobIDs))
+	return nil
+}
+
+// ValidateJobs validates that all jobs are in a consistent state
+func (m *Manager) ValidateJobs() error {
+	m.jobsMux.RLock()
+	defer m.jobsMux.RUnlock()
+
+	// Basic validation - check for inconsistent states
+	for id, status := range m.jobs {
+		// Check if job is marked as running but not in runningJobs map
+		if status.State == JobStateRunning {
+			if _, exists := m.runningJobs[id]; !exists {
+				log.Logger.Warnf("Job %s marked as running but not in runningJobs map", id)
+			}
+		}
+
+		// Check if job is marked as paused but not in pausedJobs map
+		if status.State == JobStatePaused {
+			if _, exists := m.pausedJobs[id]; !exists {
+				log.Logger.Warnf("Job %s marked as paused but not in pausedJobs map", id)
+			}
+		}
+
+		// Validate job data integrity
+		if status.ID == "" {
+			return fmt.Errorf("job has empty ID")
+		}
+
+		if status.Type == "" {
+			return fmt.Errorf("job %s has empty type", status.ID)
+		}
+	}
+
+	log.Logger.Infof("Validated %d jobs", len(m.jobs))
+	return nil
+}
+
+// GetPausedJobs returns IDs of all paused jobs
+func (m *Manager) GetPausedJobs() ([]string, error) {
+	m.jobsMux.RLock()
+	defer m.jobsMux.RUnlock()
+
+	var pausedJobs []string
+	for id, status := range m.jobs {
+		if status.State == JobStatePaused {
+			pausedJobs = append(pausedJobs, id)
+		}
+	}
+
+	return pausedJobs, nil
+}
