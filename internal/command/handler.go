@@ -56,29 +56,29 @@ func (hr *HandlerRegistry) Register(handler Handler) error {
 	if spec.Name == "" {
 		return fmt.Errorf("handler spec must have a name")
 	}
-	
+
 	if _, exists := hr.handlers[spec.Name]; exists {
 		return fmt.Errorf("handler for command %s already registered", spec.Name)
 	}
-	
+
 	// Register with parser
 	if err := hr.parser.RegisterCommand(spec); err != nil {
 		return fmt.Errorf("failed to register command spec: %w", err)
 	}
-	
+
 	// Register handler
 	hr.handlers[spec.Name] = handler
-	
+
 	// Add to category
 	if spec.Category != "" {
 		hr.categories[spec.Category] = append(hr.categories[spec.Category], spec.Name)
 	}
-	
+
 	// Register aliases
 	for _, alias := range spec.Aliases {
 		hr.handlers[alias] = handler
 	}
-	
+
 	return nil
 }
 
@@ -88,17 +88,17 @@ func (hr *HandlerRegistry) Execute(ctx *ExecutionContext, input string) error {
 	if err != nil {
 		return fmt.Errorf("parse error: %w", err)
 	}
-	
+
 	handler, exists := hr.handlers[cmd.Name]
 	if !exists {
 		return fmt.Errorf("no handler registered for command: %s", cmd.Name)
 	}
-	
+
 	// Validate permissions
 	if err := handler.ValidatePermissions(ctx, cmd); err != nil {
 		return fmt.Errorf("permission denied: %w", err)
 	}
-	
+
 	// Execute command
 	ctx.StartTime = time.Now()
 	return handler.Execute(ctx, cmd)
@@ -109,28 +109,28 @@ func (hr *HandlerRegistry) GetCompletions(ctx *ExecutionContext, input string) [
 	if input == "" {
 		return hr.parser.GetCompletions("")
 	}
-	
+
 	// Try to parse partial command
 	parts := strings.Fields(input)
 	if len(parts) == 0 {
 		return hr.parser.GetCompletions("")
 	}
-	
+
 	// If input ends with space, we're completing next argument
 	endsWithSpace := strings.HasSuffix(input, " ")
-	
+
 	if len(parts) == 1 && !endsWithSpace {
 		// Completing command name
 		return hr.parser.GetCompletions(parts[0])
 	}
-	
+
 	// Completing arguments for a command
 	commandName := parts[0]
 	handler, exists := hr.handlers[commandName]
 	if !exists {
 		return []string{}
 	}
-	
+
 	// Get partial argument (last part if not ending with space)
 	partial := ""
 	args := parts[1:]
@@ -138,7 +138,7 @@ func (hr *HandlerRegistry) GetCompletions(ctx *ExecutionContext, input string) [
 		partial = parts[len(parts)-1]
 		args = parts[1 : len(parts)-1]
 	}
-	
+
 	return handler.GetArgumentCompletions(ctx, partial, args)
 }
 
@@ -151,13 +151,13 @@ func (hr *HandlerRegistry) GetHandler(commandName string) (Handler, bool) {
 // ListCommands returns all registered commands by category
 func (hr *HandlerRegistry) ListCommands() map[string][]string {
 	result := make(map[string][]string)
-	
+
 	// Copy categories
 	for category, commands := range hr.categories {
 		result[category] = make([]string, len(commands))
 		copy(result[category], commands)
 	}
-	
+
 	// Add uncategorized commands
 	var uncategorized []string
 	for name, handler := range hr.handlers {
@@ -166,11 +166,11 @@ func (hr *HandlerRegistry) ListCommands() map[string][]string {
 			uncategorized = append(uncategorized, name)
 		}
 	}
-	
+
 	if len(uncategorized) > 0 {
 		result[""] = uncategorized
 	}
-	
+
 	return result
 }
 
@@ -229,7 +229,7 @@ func NewHelpHandler(registry *HandlerRegistry) *HelpHandler {
 			"help config",
 		},
 	}
-	
+
 	return &HelpHandler{
 		BaseHandler: NewBaseHandler(spec),
 		registry:    registry,
@@ -241,7 +241,7 @@ func (hh *HelpHandler) Execute(ctx *ExecutionContext, cmd *Command) error {
 	if len(cmd.Args) == 0 {
 		return hh.showAllCommands()
 	}
-	
+
 	return hh.showCommandHelp(cmd.Args[0])
 }
 
@@ -249,9 +249,9 @@ func (hh *HelpHandler) Execute(ctx *ExecutionContext, cmd *Command) error {
 func (hh *HelpHandler) showAllCommands() error {
 	fmt.Println("Available commands:")
 	fmt.Println()
-	
+
 	commands := hh.registry.ListCommands()
-	
+
 	// Show categorized commands
 	for category, commandList := range commands {
 		if category != "" {
@@ -259,7 +259,7 @@ func (hh *HelpHandler) showAllCommands() error {
 		} else {
 			fmt.Println("Other:")
 		}
-		
+
 		for _, commandName := range commandList {
 			if handler, exists := hh.registry.GetHandler(commandName); exists {
 				spec := handler.GetSpec()
@@ -268,7 +268,7 @@ func (hh *HelpHandler) showAllCommands() error {
 		}
 		fmt.Println()
 	}
-	
+
 	fmt.Println("Use 'help <command>' for detailed information about a specific command.")
 	return nil
 }
@@ -279,13 +279,13 @@ func (hh *HelpHandler) showCommandHelp(commandName string) error {
 	if !exists {
 		return fmt.Errorf("unknown command: %s", commandName)
 	}
-	
+
 	spec := handler.GetSpec()
 	helpText, err := hh.registry.parser.GetCommandHelp(spec.Name)
 	if err != nil {
 		return fmt.Errorf("failed to get help for command %s: %w", commandName, err)
 	}
-	
+
 	fmt.Print(helpText)
 	return nil
 }
@@ -314,7 +314,7 @@ func NewExitHandler() *ExitHandler {
 		MinArgs:     0,
 		MaxArgs:     0,
 	}
-	
+
 	return &ExitHandler{
 		BaseHandler: NewBaseHandler(spec),
 	}
@@ -339,13 +339,13 @@ func NewSuggestionEngine(registry *HandlerRegistry) *SuggestionEngine {
 func (se *SuggestionEngine) GetSuggestions(input string) []string {
 	commands := se.getAllCommandNames()
 	var suggestions []string
-	
+
 	for _, command := range commands {
 		if se.isClose(input, command) {
 			suggestions = append(suggestions, command)
 		}
 	}
-	
+
 	return suggestions
 }
 
@@ -353,7 +353,7 @@ func (se *SuggestionEngine) GetSuggestions(input string) []string {
 func (se *SuggestionEngine) getAllCommandNames() []string {
 	var names []string
 	seen := make(map[string]bool)
-	
+
 	for name, handler := range se.registry.handlers {
 		spec := handler.GetSpec()
 		if name == spec.Name && !seen[name] { // Only main command names
@@ -361,7 +361,7 @@ func (se *SuggestionEngine) getAllCommandNames() []string {
 			seen[name] = true
 		}
 	}
-	
+
 	return names
 }
 
@@ -370,29 +370,29 @@ func (se *SuggestionEngine) isClose(a, b string) bool {
 	if len(a) == 0 || len(b) == 0 {
 		return false
 	}
-	
+
 	// Check if one is prefix of another
 	if strings.HasPrefix(b, a) || strings.HasPrefix(a, b) {
 		return true
 	}
-	
+
 	// Simple character difference check
 	if abs(len(a)-len(b)) > 2 {
 		return false
 	}
-	
+
 	// Count character differences
 	differences := 0
 	minLen := min(len(a), len(b))
-	
+
 	for i := 0; i < minLen; i++ {
 		if a[i] != b[i] {
 			differences++
 		}
 	}
-	
+
 	differences += abs(len(a) - len(b))
-	
+
 	// Allow up to 2 character differences
 	return differences <= 2
 }

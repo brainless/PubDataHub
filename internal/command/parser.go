@@ -18,11 +18,11 @@ type Command struct {
 
 // FlagSpec defines the specification for a command flag
 type FlagSpec struct {
-	Type        string `json:"type"`        // "string", "int", "bool", "float"
-	Short       string `json:"short"`       // Short flag name (e.g., "v" for -v)
-	Description string `json:"description"` // Help text for flag
-	Default     interface{} `json:"default"` // Default value
-	Required    bool   `json:"required"`    // Whether flag is required
+	Type        string      `json:"type"`        // "string", "int", "bool", "float"
+	Short       string      `json:"short"`       // Short flag name (e.g., "v" for -v)
+	Description string      `json:"description"` // Help text for flag
+	Default     interface{} `json:"default"`     // Default value
+	Required    bool        `json:"required"`    // Whether flag is required
 }
 
 // CommandSpec defines the specification for a command
@@ -55,14 +55,14 @@ func (p *Parser) RegisterCommand(spec *CommandSpec) error {
 	if spec.Name == "" {
 		return fmt.Errorf("command name cannot be empty")
 	}
-	
+
 	if _, exists := p.specs[spec.Name]; exists {
 		return fmt.Errorf("command %s already registered", spec.Name)
 	}
-	
+
 	// Register main command name
 	p.specs[spec.Name] = spec
-	
+
 	// Register aliases
 	for _, alias := range spec.Aliases {
 		if _, exists := p.specs[alias]; exists {
@@ -70,7 +70,7 @@ func (p *Parser) RegisterCommand(spec *CommandSpec) error {
 		}
 		p.specs[alias] = spec
 	}
-	
+
 	return nil
 }
 
@@ -79,16 +79,16 @@ func (p *Parser) Parse(input string) (*Command, error) {
 	if strings.TrimSpace(input) == "" {
 		return nil, fmt.Errorf("empty command")
 	}
-	
+
 	tokens, err := p.tokenize(input)
 	if err != nil {
 		return nil, fmt.Errorf("tokenization error: %w", err)
 	}
-	
+
 	if len(tokens) == 0 {
 		return nil, fmt.Errorf("no command found")
 	}
-	
+
 	cmd := &Command{
 		Name:     tokens[0].Value,
 		Args:     []string{},
@@ -96,12 +96,12 @@ func (p *Parser) Parse(input string) (*Command, error) {
 		RawInput: input,
 		Position: tokens[0].Position,
 	}
-	
+
 	spec, exists := p.specs[cmd.Name]
 	if !exists {
 		return cmd, fmt.Errorf("unknown command: %s", cmd.Name)
 	}
-	
+
 	return p.parseWithSpec(cmd, tokens[1:], spec)
 }
 
@@ -120,30 +120,30 @@ func (p *Parser) tokenize(input string) ([]Token, error) {
 	var quoteChar rune
 	var escaped bool
 	position := 0
-	
+
 	for i, r := range input {
 		if escaped {
 			current.WriteRune(r)
 			escaped = false
 			continue
 		}
-		
+
 		if r == '\\' {
 			escaped = true
 			continue
 		}
-		
+
 		if !inQuotes && (r == '"' || r == '\'') {
 			inQuotes = true
 			quoteChar = r
 			continue
 		}
-		
+
 		if inQuotes && r == quoteChar {
 			inQuotes = false
 			continue
 		}
-		
+
 		if !inQuotes && unicode.IsSpace(r) {
 			if current.Len() > 0 {
 				tokens = append(tokens, Token{
@@ -156,14 +156,14 @@ func (p *Parser) tokenize(input string) ([]Token, error) {
 			}
 			continue
 		}
-		
+
 		current.WriteRune(r)
 	}
-	
+
 	if inQuotes {
 		return nil, fmt.Errorf("unterminated quote at position %d", position)
 	}
-	
+
 	if current.Len() > 0 {
 		tokens = append(tokens, Token{
 			Type:     p.getTokenType(current.String()),
@@ -171,7 +171,7 @@ func (p *Parser) tokenize(input string) ([]Token, error) {
 			Position: position,
 		})
 	}
-	
+
 	return tokens, nil
 }
 
@@ -194,11 +194,11 @@ func (p *Parser) parseWithSpec(cmd *Command, tokens []Token, spec *CommandSpec) 
 			cmd.Flags[flagName] = flagSpec.Default
 		}
 	}
-	
+
 	i := 0
 	for i < len(tokens) {
 		token := tokens[i]
-		
+
 		switch token.Type {
 		case "long_flag":
 			flagName := strings.TrimPrefix(token.Value, "--")
@@ -207,7 +207,7 @@ func (p *Parser) parseWithSpec(cmd *Command, tokens []Token, spec *CommandSpec) 
 				return cmd, err
 			}
 			i += consumed
-			
+
 		case "short_flag":
 			flagChars := strings.TrimPrefix(token.Value, "-")
 			// Handle combined short flags like -vf
@@ -216,7 +216,7 @@ func (p *Parser) parseWithSpec(cmd *Command, tokens []Token, spec *CommandSpec) 
 				if flagName == "" {
 					return cmd, fmt.Errorf("unknown flag: -%c at position %d", char, token.Position+j+1)
 				}
-				
+
 				// For the last flag, check if it needs a value
 				if j == len(flagChars)-1 {
 					consumed, err := p.parseFlag(cmd, flagName, tokens, i, spec, true)
@@ -233,22 +233,22 @@ func (p *Parser) parseWithSpec(cmd *Command, tokens []Token, spec *CommandSpec) 
 					cmd.Flags[flagName] = true
 				}
 			}
-			
+
 		case "arg":
 			cmd.Args = append(cmd.Args, token.Value)
 			i++
 		}
 	}
-	
+
 	// Validate argument count
 	if len(cmd.Args) < spec.MinArgs {
 		return cmd, fmt.Errorf("command %s requires at least %d arguments, got %d", spec.Name, spec.MinArgs, len(cmd.Args))
 	}
-	
+
 	if spec.MaxArgs >= 0 && len(cmd.Args) > spec.MaxArgs {
 		return cmd, fmt.Errorf("command %s accepts at most %d arguments, got %d", spec.Name, spec.MaxArgs, len(cmd.Args))
 	}
-	
+
 	// Validate required flags
 	for flagName, flagSpec := range spec.Flags {
 		if flagSpec.Required {
@@ -257,7 +257,7 @@ func (p *Parser) parseWithSpec(cmd *Command, tokens []Token, spec *CommandSpec) 
 			}
 		}
 	}
-	
+
 	return cmd, nil
 }
 
@@ -271,20 +271,20 @@ func (p *Parser) parseFlag(cmd *Command, flagName string, tokens []Token, index 
 		}
 		return 0, fmt.Errorf("unknown flag: %s%s", prefix, flagName)
 	}
-	
+
 	consumed := 1 // Always consume the flag token
-	
+
 	switch flagSpec.Type {
 	case "bool":
 		cmd.Flags[flagName] = true
-		
+
 	case "string":
 		if index+1 >= len(tokens) || tokens[index+1].Type != "arg" {
 			return 0, fmt.Errorf("flag --%s requires a string value", flagName)
 		}
 		cmd.Flags[flagName] = tokens[index+1].Value
 		consumed = 2
-		
+
 	case "int":
 		if index+1 >= len(tokens) || tokens[index+1].Type != "arg" {
 			return 0, fmt.Errorf("flag --%s requires an integer value", flagName)
@@ -295,7 +295,7 @@ func (p *Parser) parseFlag(cmd *Command, flagName string, tokens []Token, index 
 		}
 		cmd.Flags[flagName] = val
 		consumed = 2
-		
+
 	case "float":
 		if index+1 >= len(tokens) || tokens[index+1].Type != "arg" {
 			return 0, fmt.Errorf("flag --%s requires a float value", flagName)
@@ -306,11 +306,11 @@ func (p *Parser) parseFlag(cmd *Command, flagName string, tokens []Token, index 
 		}
 		cmd.Flags[flagName] = val
 		consumed = 2
-		
+
 	default:
 		return 0, fmt.Errorf("unsupported flag type: %s", flagSpec.Type)
 	}
-	
+
 	return consumed, nil
 }
 
@@ -338,7 +338,7 @@ func (p *Parser) GetCommandSpecs() map[string]*CommandSpec {
 func (p *Parser) GetCompletions(partial string) []string {
 	var completions []string
 	seen := make(map[string]bool)
-	
+
 	for name, spec := range p.specs {
 		// Only include main command names, not aliases
 		if name == spec.Name && strings.HasPrefix(name, partial) {
@@ -348,7 +348,7 @@ func (p *Parser) GetCompletions(partial string) []string {
 			}
 		}
 	}
-	
+
 	return completions
 }
 
@@ -358,29 +358,29 @@ func (p *Parser) Validate(cmd *Command) error {
 	if !exists {
 		return fmt.Errorf("unknown command: %s", cmd.Name)
 	}
-	
+
 	// Validate argument count
 	if len(cmd.Args) < spec.MinArgs {
 		return fmt.Errorf("command %s requires at least %d arguments, got %d", spec.Name, spec.MinArgs, len(cmd.Args))
 	}
-	
+
 	if spec.MaxArgs >= 0 && len(cmd.Args) > spec.MaxArgs {
 		return fmt.Errorf("command %s accepts at most %d arguments, got %d", spec.Name, spec.MaxArgs, len(cmd.Args))
 	}
-	
+
 	// Validate flags
 	for flagName, value := range cmd.Flags {
 		flagSpec, exists := spec.Flags[flagName]
 		if !exists {
 			return fmt.Errorf("unknown flag: %s", flagName)
 		}
-		
+
 		// Validate flag type
 		if !p.isValidType(value, flagSpec.Type) {
 			return fmt.Errorf("flag %s has invalid type: expected %s, got %T", flagName, flagSpec.Type, value)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -410,24 +410,24 @@ func (p *Parser) GetCommandHelp(commandName string) (string, error) {
 	if !exists {
 		return "", fmt.Errorf("unknown command: %s", commandName)
 	}
-	
+
 	var help strings.Builder
-	
+
 	help.WriteString(fmt.Sprintf("Command: %s\n", spec.Name))
 	help.WriteString(fmt.Sprintf("Description: %s\n", spec.Description))
-	
+
 	if spec.Usage != "" {
 		help.WriteString(fmt.Sprintf("Usage: %s\n", spec.Usage))
 	}
-	
+
 	if spec.Category != "" {
 		help.WriteString(fmt.Sprintf("Category: %s\n", spec.Category))
 	}
-	
+
 	if len(spec.Aliases) > 0 {
 		help.WriteString(fmt.Sprintf("Aliases: %s\n", strings.Join(spec.Aliases, ", ")))
 	}
-	
+
 	if len(spec.Flags) > 0 {
 		help.WriteString("\nFlags:\n")
 		for flagName, flagSpec := range spec.Flags {
@@ -435,28 +435,28 @@ func (p *Parser) GetCommandHelp(commandName string) (string, error) {
 			if flagSpec.Short != "" {
 				shortFlag = fmt.Sprintf(", -%s", flagSpec.Short)
 			}
-			
+
 			required := ""
 			if flagSpec.Required {
 				required = " (required)"
 			}
-			
+
 			defaultVal := ""
 			if flagSpec.Default != nil {
 				defaultVal = fmt.Sprintf(" (default: %v)", flagSpec.Default)
 			}
-			
-			help.WriteString(fmt.Sprintf("  --%s%s: %s%s%s\n", 
+
+			help.WriteString(fmt.Sprintf("  --%s%s: %s%s%s\n",
 				flagName, shortFlag, flagSpec.Description, required, defaultVal))
 		}
 	}
-	
+
 	if len(spec.Examples) > 0 {
 		help.WriteString("\nExamples:\n")
 		for _, example := range spec.Examples {
 			help.WriteString(fmt.Sprintf("  %s\n", example))
 		}
 	}
-	
+
 	return help.String(), nil
 }

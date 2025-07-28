@@ -7,7 +7,7 @@ import (
 
 func TestParser_Parse(t *testing.T) {
 	parser := NewParser()
-	
+
 	// Register test command
 	spec := &CommandSpec{
 		Name:    "test",
@@ -20,12 +20,12 @@ func TestParser_Parse(t *testing.T) {
 			"rate":    {Type: "float"},
 		},
 	}
-	
+
 	err := parser.RegisterCommand(spec)
 	if err != nil {
 		t.Fatalf("Failed to register command: %v", err)
 	}
-	
+
 	tests := []struct {
 		name    string
 		input   string
@@ -151,7 +151,7 @@ func TestParser_Parse(t *testing.T) {
 			wantErr: true,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := parser.Parse(tt.input)
@@ -172,7 +172,7 @@ func TestParser_Parse(t *testing.T) {
 
 func TestParser_Tokenize(t *testing.T) {
 	parser := NewParser()
-	
+
 	tests := []struct {
 		name    string
 		input   string
@@ -225,7 +225,7 @@ func TestParser_Tokenize(t *testing.T) {
 			wantErr: true,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := parser.tokenize(tt.input)
@@ -242,21 +242,21 @@ func TestParser_Tokenize(t *testing.T) {
 
 func TestParser_GetCompletions(t *testing.T) {
 	parser := NewParser()
-	
+
 	// Register test commands
 	specs := []*CommandSpec{
 		{Name: "download", Description: "Download data"},
 		{Name: "delete", Description: "Delete data"},
 		{Name: "config", Description: "Configure system"},
 	}
-	
+
 	for _, spec := range specs {
 		err := parser.RegisterCommand(spec)
 		if err != nil {
 			t.Fatalf("Failed to register command: %v", err)
 		}
 	}
-	
+
 	tests := []struct {
 		name    string
 		partial string
@@ -283,7 +283,7 @@ func TestParser_GetCompletions(t *testing.T) {
 			want:    []string{},
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := parser.GetCompletions(tt.partial)
@@ -296,7 +296,7 @@ func TestParser_GetCompletions(t *testing.T) {
 
 func TestCommandSpec_Validation(t *testing.T) {
 	parser := NewParser()
-	
+
 	// Register command with required flag
 	spec := &CommandSpec{
 		Name:    "test",
@@ -307,12 +307,12 @@ func TestCommandSpec_Validation(t *testing.T) {
 			"optional": {Type: "int", Default: 42},
 		},
 	}
-	
+
 	err := parser.RegisterCommand(spec)
 	if err != nil {
 		t.Fatalf("Failed to register command: %v", err)
 	}
-	
+
 	tests := []struct {
 		name    string
 		input   string
@@ -334,7 +334,7 @@ func TestCommandSpec_Validation(t *testing.T) {
 			wantErr: false,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := parser.Parse(tt.input)
@@ -350,17 +350,17 @@ func slicesEqual(a, b []string) bool {
 	if len(a) != len(b) {
 		return false
 	}
-	
+
 	countA := make(map[string]int)
 	countB := make(map[string]int)
-	
+
 	for _, item := range a {
 		countA[item]++
 	}
-	
+
 	for _, item := range b {
 		countB[item]++
 	}
-	
+
 	return reflect.DeepEqual(countA, countB)
 }

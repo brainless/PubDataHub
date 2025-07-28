@@ -16,12 +16,12 @@ import (
 
 // EnhancedShell represents the enhanced interactive shell with readline support
 type EnhancedShell struct {
-	*Shell           // Embed the original Shell
-	registry         *CommandRegistry
+	*Shell             // Embed the original Shell
+	registry           *CommandRegistry
 	commandIntegration *command.ShellIntegration
-	readline         *readline.Instance
-	historyFile      string
-	prompt           string
+	readline           *readline.Instance
+	historyFile        string
+	prompt             string
 }
 
 // NewEnhancedShell creates a new enhanced shell instance
@@ -97,7 +97,7 @@ type CustomCompleter struct {
 // Do implements the readline.AutoCompleter interface
 func (cc *CustomCompleter) Do(line []rune, pos int) (newLine [][]rune, length int) {
 	lineStr := string(line[:pos])
-	
+
 	// Get completions from new command system
 	completions := cc.shell.commandIntegration.GetCompletions(
 		cc.shell.Shell.ctx,
@@ -106,24 +106,24 @@ func (cc *CustomCompleter) Do(line []rune, pos int) (newLine [][]rune, length in
 		cc.shell.Shell.dataSources,
 		nil, // config
 	)
-	
+
 	// If no completions from new system, try legacy
 	if len(completions) == 0 {
 		completions = cc.getLegacyCompletions(lineStr)
 	}
-	
+
 	// Convert to readline format
 	var newLines [][]rune
 	for _, completion := range completions {
 		newLines = append(newLines, []rune(completion))
 	}
-	
+
 	// Calculate how much of the current word to replace
 	words := strings.Fields(lineStr)
 	if len(words) > 0 && !strings.HasSuffix(lineStr, " ") {
 		length = len(words[len(words)-1])
 	}
-	
+
 	return newLines, length
 }
 
@@ -133,11 +133,11 @@ func (cc *CustomCompleter) getLegacyCompletions(input string) []string {
 	if len(parts) == 0 {
 		return cc.shell.registry.GetCompletions("")
 	}
-	
+
 	if len(parts) == 1 && !strings.HasSuffix(input, " ") {
 		return cc.shell.registry.GetCompletions(parts[0])
 	}
-	
+
 	// For argument completions, use the handler's completion method
 	if len(parts) > 0 {
 		if handler, exists := cc.shell.registry.Get(parts[0]); exists {
@@ -150,7 +150,7 @@ func (cc *CustomCompleter) getLegacyCompletions(input string) []string {
 			return handler.GetCompletions(partial, args)
 		}
 	}
-	
+
 	return []string{}
 }
 
@@ -348,12 +348,12 @@ func (s *EnhancedShell) processCommand(input string) error {
 		s.Shell.dataSources,
 		nil, // config - could be added later
 	)
-	
+
 	// If command not found in new system, fall back to old registry
 	if err != nil && strings.Contains(err.Error(), "not fully implemented yet") {
 		return s.processLegacyCommand(input)
 	}
-	
+
 	return err
 }
 

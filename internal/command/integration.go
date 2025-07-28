@@ -24,16 +24,16 @@ func NewShellIntegration() *ShellIntegration {
 		Variables: make(map[string]interface{}),
 		History:   []string{},
 	}
-	
+
 	integration := &ShellIntegration{
 		registry:   registry,
 		suggestion: suggestion,
 		session:    session,
 	}
-	
+
 	// Register built-in commands
 	integration.registerBuiltinCommands()
-	
+
 	return integration
 }
 
@@ -44,8 +44,8 @@ func (si *ShellIntegration) registerBuiltinCommands() {
 	if err := si.registry.Register(helpHandler); err != nil {
 		fmt.Printf("Warning: failed to register help command: %v\n", err)
 	}
-	
-	// Register exit command  
+
+	// Register exit command
 	exitHandler := NewExitHandler()
 	if err := si.registry.Register(exitHandler); err != nil {
 		fmt.Printf("Warning: failed to register exit command: %v\n", err)
@@ -59,37 +59,37 @@ func (si *ShellIntegration) RegisterApplicationCommands() error {
 	if err := si.registry.Register(configHandler); err != nil {
 		return fmt.Errorf("failed to register config command: %w", err)
 	}
-	
+
 	// Download command
 	downloadHandler := NewDownloadHandler()
 	if err := si.registry.Register(downloadHandler); err != nil {
 		return fmt.Errorf("failed to register download command: %w", err)
 	}
-	
+
 	// Query command
 	queryHandler := NewQueryHandler()
 	if err := si.registry.Register(queryHandler); err != nil {
 		return fmt.Errorf("failed to register query command: %w", err)
 	}
-	
+
 	// Jobs command
 	jobsHandler := NewJobsHandler()
 	if err := si.registry.Register(jobsHandler); err != nil {
 		return fmt.Errorf("failed to register jobs command: %w", err)
 	}
-	
+
 	// Sources command
 	sourcesHandler := NewSourcesHandler()
 	if err := si.registry.Register(sourcesHandler); err != nil {
 		return fmt.Errorf("failed to register sources command: %w", err)
 	}
-	
+
 	// Status command
 	statusHandler := NewStatusHandler()
 	if err := si.registry.Register(statusHandler); err != nil {
 		return fmt.Errorf("failed to register status command: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -97,7 +97,7 @@ func (si *ShellIntegration) RegisterApplicationCommands() error {
 func (si *ShellIntegration) ProcessCommand(ctx context.Context, input string, jobManager interface{}, dataSources map[string]datasource.DataSource, config interface{}) error {
 	// Add to history
 	si.session.History = append(si.session.History, input)
-	
+
 	// Create execution context
 	execCtx := &ExecutionContext{
 		Context:     ctx,
@@ -107,7 +107,7 @@ func (si *ShellIntegration) ProcessCommand(ctx context.Context, input string, jo
 		Config:      config,
 		Parser:      si.registry.parser,
 	}
-	
+
 	// Try to execute command
 	err := si.registry.Execute(execCtx, input)
 	if err != nil {
@@ -123,7 +123,7 @@ func (si *ShellIntegration) ProcessCommand(ctx context.Context, input string, jo
 		}
 		return err
 	}
-	
+
 	return nil
 }
 
@@ -137,7 +137,7 @@ func (si *ShellIntegration) GetCompletions(ctx context.Context, input string, jo
 		Config:      config,
 		Parser:      si.registry.parser,
 	}
-	
+
 	return si.registry.GetCompletions(execCtx, input)
 }
 
@@ -195,7 +195,7 @@ func NewConfigHandler() *ConfigHandler {
 			"config validate",
 		},
 	}
-	
+
 	return &ConfigHandler{
 		BaseHandler: NewBaseHandler(spec),
 	}
@@ -206,7 +206,7 @@ func (ch *ConfigHandler) Execute(ctx *ExecutionContext, cmd *Command) error {
 	if len(cmd.Args) == 0 {
 		return fmt.Errorf("config command requires a subcommand (show, set-storage)")
 	}
-	
+
 	// For now, delegate to existing shell handler
 	// This would be replaced with actual implementation
 	return fmt.Errorf("config command not fully implemented yet - use existing shell commands")
@@ -253,7 +253,7 @@ func NewDownloadHandler() *DownloadHandler {
 			"download hackernews --batch-size 50 --resume",
 		},
 	}
-	
+
 	return &DownloadHandler{
 		BaseHandler: NewBaseHandler(spec),
 	}
@@ -302,7 +302,7 @@ func NewQueryHandler() *QueryHandler {
 			"query hackernews \"SELECT * FROM items WHERE score > 100\" --format csv",
 		},
 	}
-	
+
 	return &QueryHandler{
 		BaseHandler: NewBaseHandler(spec),
 	}
@@ -327,7 +327,7 @@ func (qh *QueryHandler) GetArgumentCompletions(ctx *ExecutionContext, partial st
 	return []string{}
 }
 
-// JobsHandler handles job management commands  
+// JobsHandler handles job management commands
 type JobsHandler struct {
 	*BaseHandler
 }
@@ -350,7 +350,7 @@ func NewJobsHandler() *JobsHandler {
 			"jobs stop job_123",
 		},
 	}
-	
+
 	return &JobsHandler{
 		BaseHandler: NewBaseHandler(spec),
 	}
@@ -380,7 +380,7 @@ func NewSourcesHandler() *SourcesHandler {
 			"sources status hackernews",
 		},
 	}
-	
+
 	return &SourcesHandler{
 		BaseHandler: NewBaseHandler(spec),
 	}
@@ -415,7 +415,7 @@ func NewStatusHandler() *StatusHandler {
 			"status jobs",
 		},
 	}
-	
+
 	return &StatusHandler{
 		BaseHandler: NewBaseHandler(spec),
 	}
