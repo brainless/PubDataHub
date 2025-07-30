@@ -2,7 +2,13 @@ package jobs
 
 import (
 	"context"
+	"errors"
 	"time"
+)
+
+// Common errors
+var (
+	ErrJobNotFound = errors.New("job not found")
 )
 
 // JobState represents the current state of a job
