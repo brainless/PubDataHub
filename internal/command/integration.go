@@ -184,7 +184,7 @@ func NewConfigHandler() *ConfigHandler {
 		Description: "Manage configuration settings",
 		Usage:       "config <subcommand> [args...]",
 		Category:    "configuration",
-		MinArgs:     1,
+		MinArgs:     0,
 		MaxArgs:     -1,
 		Flags: map[string]FlagSpec{
 			"verbose": {Type: "bool", Short: "v", Description: "Verbose output"},
@@ -204,7 +204,7 @@ func NewConfigHandler() *ConfigHandler {
 // Execute handles config operations
 func (ch *ConfigHandler) Execute(ctx *ExecutionContext, cmd *Command) error {
 	if len(cmd.Args) == 0 {
-		return fmt.Errorf("config command requires a subcommand (show, set-storage)")
+		return fmt.Errorf("config command requires subcommand (show, set-storage)")
 	}
 
 	// For now, delegate to existing shell handler
@@ -373,7 +373,7 @@ func NewSourcesHandler() *SourcesHandler {
 		Description: "Manage data sources",
 		Usage:       "sources <subcommand> [args...]",
 		Category:    "data",
-		MinArgs:     1,
+		MinArgs:     0,
 		MaxArgs:     -1,
 		Examples: []string{
 			"sources list",
@@ -388,6 +388,10 @@ func NewSourcesHandler() *SourcesHandler {
 
 // Execute handles sources operations
 func (sh *SourcesHandler) Execute(ctx *ExecutionContext, cmd *Command) error {
+	if len(cmd.Args) == 0 {
+		return fmt.Errorf("sources command requires subcommand (list, status)")
+	}
+
 	return fmt.Errorf("sources command not fully implemented yet - use existing shell commands")
 }
 
@@ -423,5 +427,26 @@ func NewStatusHandler() *StatusHandler {
 
 // Execute handles status operations
 func (sh *StatusHandler) Execute(ctx *ExecutionContext, cmd *Command) error {
-	return fmt.Errorf("status command not fully implemented yet - use existing shell commands")
+	fmt.Println("System Status:")
+	fmt.Println("  Application: PubDataHub")
+	fmt.Println("  Mode: Interactive TUI")
+
+	// Show data sources status
+	if len(ctx.DataSources) > 0 {
+		fmt.Println("  Data Sources:")
+		for name := range ctx.DataSources {
+			fmt.Printf("    %s: Available\n", name)
+		}
+	} else {
+		fmt.Println("  Data Sources: None available")
+	}
+
+	// Show job manager status if available
+	if ctx.JobManager != nil {
+		fmt.Println("  Job Manager: Active")
+	} else {
+		fmt.Println("  Job Manager: Not available")
+	}
+
+	return nil
 }
