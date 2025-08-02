@@ -118,7 +118,7 @@ func (s *Shell) Run() error {
 
 // processCommand handles individual commands
 func (s *Shell) processCommand(input string) error {
-	parts := strings.Fields(input)
+	parts := parseCommandArgs(input)
 	if len(parts) == 0 {
 		return nil
 	}

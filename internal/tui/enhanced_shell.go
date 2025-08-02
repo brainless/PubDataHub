@@ -149,7 +149,7 @@ func (cc *CustomCompleter) Do(line []rune, pos int) (newLine [][]rune, length in
 
 // getLegacyCompletions gets completions from the legacy system
 func (cc *CustomCompleter) getLegacyCompletions(input string) []string {
-	parts := strings.Fields(input)
+	parts := parseCommandArgs(input)
 	if len(parts) == 0 {
 		return cc.shell.registry.GetCompletions("")
 	}
@@ -395,7 +395,7 @@ func (s *EnhancedShell) processCommand(input string) error {
 
 // processLegacyCommand handles commands using the legacy registry
 func (s *EnhancedShell) processLegacyCommand(input string) error {
-	parts := strings.Fields(input)
+	parts := parseCommandArgs(input)
 	if len(parts) == 0 {
 		return nil
 	}
