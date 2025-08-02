@@ -3,6 +3,7 @@ package tui
 import "strings"
 
 // parseCommandArgs parses command line arguments with proper quote handling
+// Supports double quotes and escape sequences
 func parseCommandArgs(input string) []string {
 	var args []string
 	var current strings.Builder
