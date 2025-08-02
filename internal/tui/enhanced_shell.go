@@ -22,6 +22,8 @@ type EnhancedShell struct {
 	readline           *readline.Instance
 	historyFile        string
 	prompt             string
+	aliasManager       *AliasManager
+	workspaceManager   *WorkspaceManager
 }
 
 // NewEnhancedShell creates a new enhanced shell instance
@@ -35,20 +37,38 @@ func NewEnhancedShell() (*EnhancedShell, error) {
 		log.Logger.Warnf("Failed to register application commands: %v", err)
 	}
 
+	// Create alias manager
+	aliasManager, err := NewAliasManager()
+	if err != nil {
+		log.Logger.Warnf("Failed to create alias manager: %v", err)
+	}
+
+	// Create workspace manager
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		log.Logger.Warnf("Could not get home directory: %v", err)
+		homeDir = "."
+	}
+	workspaceDir := filepath.Join(homeDir, ".pubdatahub_workspaces")
+	workspaceManager, err := NewWorkspaceManager(workspaceDir)
+	if err != nil {
+		log.Logger.Warnf("Failed to create workspace manager: %v", err)
+	}
+
 	shell := &EnhancedShell{
 		Shell:              baseShell,
 		registry:           NewCommandRegistry(),
 		commandIntegration: commandIntegration,
 		prompt:             "> ",
+		aliasManager:       aliasManager,
+		workspaceManager:   workspaceManager,
 	}
 
 	// Set up history file
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		log.Logger.Warnf("Could not get home directory: %v", err)
-		shell.historyFile = ".pubdatahub_history"
-	} else {
+	if err == nil {
 		shell.historyFile = filepath.Join(homeDir, ".pubdatahub_history")
+	} else {
+		shell.historyFile = ".pubdatahub_history"
 	}
 
 	// Initialize readline with configuration
@@ -226,6 +246,14 @@ func (s *EnhancedShell) registerCommands() {
 	s.registry.Register("query", NewQueryCommand())
 	s.registry.Register("jobs", NewJobsCommand())
 	s.registry.Register("sources", NewSourcesCommand())
+
+	// Register enhanced features
+	if s.aliasManager != nil {
+		s.registry.Register("alias", NewAliasCommand(s.aliasManager))
+	}
+	if s.workspaceManager != nil {
+		s.registry.Register("workspace", NewWorkspaceCommand(s.workspaceManager))
+	}
 }
 
 // Run starts the enhanced interactive shell
@@ -287,6 +315,14 @@ func (s *EnhancedShell) Run() error {
 					continue
 				}
 				input = fullInput
+			}
+
+			// Try to expand aliases first
+			if s.aliasManager != nil {
+				if expandedInput, wasExpanded := s.aliasManager.ExpandAlias(input); wasExpanded {
+					input = expandedInput
+					fmt.Printf("→ %s\n", input) // Show expanded command
+				}
 			}
 
 			if err := s.processCommand(input); err != nil {
