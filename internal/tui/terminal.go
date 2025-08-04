@@ -125,6 +125,16 @@ func (tm *TerminalManager) IsANSISupported() bool {
 func checkANSISupport() bool {
 	// Check if we're in a terminal
 	if !term.IsTerminal(int(os.Stdout.Fd())) {
+		// Check if this might be a real terminal that's redirected or piped
+		// Look for explicit terminal environment that suggests interactive use
+		if os.Getenv("TERM") != "" {
+			// We're likely in a real terminal but output is redirected
+			// In an interactive TUI app, we should still try ANSI if TERM is set
+			termType := strings.ToLower(os.Getenv("TERM"))
+			if termType != "dumb" && termType != "" {
+				return true
+			}
+		}
 		return false
 	}
 
