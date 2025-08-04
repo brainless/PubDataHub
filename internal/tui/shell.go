@@ -14,6 +14,8 @@ import (
 	"github.com/brainless/PubDataHub/internal/datasource/hackernews"
 	"github.com/brainless/PubDataHub/internal/jobs"
 	"github.com/brainless/PubDataHub/internal/log"
+
+	"golang.org/x/term"
 )
 
 // Shell represents the interactive TUI shell
@@ -24,17 +26,26 @@ type Shell struct {
 	dataSources     map[string]datasource.DataSource
 	reader          *bufio.Scanner
 	progressDisplay *SimpleProgressDisplay
+	termHeight      int
 }
 
 // NewShell creates a new interactive shell instance
 func NewShell() *Shell {
 	ctx, cancel := context.WithCancel(context.Background())
 
+	fd := int(os.Stdin.Fd())
+	_, height, err := term.GetSize(fd)
+	if err != nil {
+		log.Logger.Warnf("Failed to get terminal size: %v, using default height 24", err)
+		height = 24 // Default height
+	}
+
 	shell := &Shell{
 		ctx:         ctx,
 		cancel:      cancel,
 		dataSources: make(map[string]datasource.DataSource),
 		reader:      bufio.NewScanner(os.Stdin),
+		termHeight:  height,
 	}
 
 	// Initialize available data sources
@@ -56,6 +67,7 @@ func NewShell() *Shell {
 
 		// Initialize simple progress display
 		shell.progressDisplay = NewSimpleProgressDisplay(enhancedJobManager, shell.dataSources)
+		shell.progressDisplay.SetTerminalHeight(shell.termHeight)
 	}
 
 	return shell
@@ -94,6 +106,10 @@ func (s *Shell) Run() error {
 		case <-s.ctx.Done():
 			return s.shutdown()
 		default:
+			// Move cursor up one line if progress display is active to avoid overwriting
+			if s.progressDisplay != nil && !s.progressDisplay.disabled {
+				fmt.Printf("\033[A")
+			}
 			fmt.Print("> ")
 
 			if !s.reader.Scan() {

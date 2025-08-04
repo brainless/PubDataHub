@@ -16,6 +16,7 @@ type SimpleProgressDisplay struct {
 	jobManager  jobs.JobManager
 	dataSources map[string]datasource.DataSource
 	disabled    bool // Disable progress display when status bar is active
+	termHeight  int
 }
 
 // NewSimpleProgressDisplay creates a new simple progress display
@@ -23,7 +24,13 @@ func NewSimpleProgressDisplay(jobManager jobs.JobManager, dataSources map[string
 	return &SimpleProgressDisplay{
 		jobManager:  jobManager,
 		dataSources: dataSources,
+		termHeight:  24, // Default value, will be updated by shell
 	}
+}
+
+// SetTerminalHeight sets the terminal height for the progress display
+func (spd *SimpleProgressDisplay) SetTerminalHeight(height int) {
+	spd.termHeight = height
 }
 
 // StartDownloadWithProgress starts a download and shows progress
@@ -162,9 +169,9 @@ func (spd *SimpleProgressDisplay) displayProgress(jobID string, status datasourc
 
 	bar := strings.Repeat("█", filledWidth) + strings.Repeat("░", barWidth-filledWidth)
 
-	// Clear the line and display progress
-	fmt.Printf("\r%s: [%s] %.1f%% (%d/%d)",
-		jobID, bar, progress, status.ItemsCached, status.ItemsTotal)
+	// Save cursor position, move to bottom, print, then restore cursor
+	fmt.Printf("\033[s\033[%d;0H\r%s: [%s] %.1f%% (%d/%d)\033[u",
+		spd.termHeight, jobID, bar, progress, status.ItemsCached, status.ItemsTotal)
 
 	// Flush the output
 	os.Stdout.Sync()
