@@ -264,6 +264,9 @@ func (s *EnhancedShell) registerCommands() {
 	if s.workspaceManager != nil {
 		s.registry.Register("workspace", NewWorkspaceCommand(s.workspaceManager))
 	}
+
+	// Register demo command for testing
+	s.registry.Register("demo-status", NewDemoCommand(s))
 }
 
 // Run starts the enhanced interactive shell
