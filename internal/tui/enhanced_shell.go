@@ -414,6 +414,12 @@ func (s *EnhancedShell) processCommand(input string) error {
 		return s.processLegacyCommand(input)
 	}
 
+	// Handle demo command directly for testing
+	if err != nil && strings.HasPrefix(input, "demo-status") {
+		s.DemoStatusBar()
+		return nil
+	}
+
 	return err
 }
 
@@ -499,9 +505,13 @@ func (s *EnhancedShell) startJobEventConsumer() {
 
 // handleJobEvent processes job events for status bar display
 func (s *EnhancedShell) handleJobEvent(event jobs.JobEvent) {
+	// Debug: log all job events to see what's happening (remove in production)
+	// log.Logger.Infof("Status Bar: Received job event - Type: %s, JobID: %s, Message: %s", 
+	//	event.EventType, event.JobID, event.Message)
+	
 	switch event.EventType {
-	case jobs.EventJobStarted:
-		// Create new status bar item for started job
+	case jobs.EventJobSubmitted, jobs.EventJobStarted:
+		// Create new status bar item for submitted/started job
 		item := CreateItemFromJobEvent(event)
 		item.Description = fmt.Sprintf("Started: %s", event.Message)
 		s.statusBar.AddItem(item)
