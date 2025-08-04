@@ -8,8 +8,10 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/brainless/PubDataHub/internal/command"
+	"github.com/brainless/PubDataHub/internal/jobs"
 	"github.com/brainless/PubDataHub/internal/log"
 	"github.com/chzyer/readline"
 )
@@ -24,6 +26,8 @@ type EnhancedShell struct {
 	prompt             string
 	aliasManager       *AliasManager
 	workspaceManager   *WorkspaceManager
+	terminalManager    *TerminalManager
+	statusBar          *StatusBar
 }
 
 // NewEnhancedShell creates a new enhanced shell instance
@@ -55,6 +59,10 @@ func NewEnhancedShell() (*EnhancedShell, error) {
 		log.Logger.Warnf("Failed to create workspace manager: %v", err)
 	}
 
+	// Initialize terminal manager and status bar
+	terminalManager := NewTerminalManager()
+	statusBar := NewStatusBar(terminalManager)
+
 	shell := &EnhancedShell{
 		Shell:              baseShell,
 		registry:           NewCommandRegistry(),
@@ -62,6 +70,8 @@ func NewEnhancedShell() (*EnhancedShell, error) {
 		prompt:             "> ",
 		aliasManager:       aliasManager,
 		workspaceManager:   workspaceManager,
+		terminalManager:    terminalManager,
+		statusBar:          statusBar,
 	}
 
 	// Set up history file
@@ -277,6 +287,17 @@ func (s *EnhancedShell) Run() error {
 	fmt.Println("Features: Command history, tab completion, multi-line support")
 	fmt.Println()
 
+	// Start status bar
+	s.statusBar.Start()
+
+	// Disable old progress display to avoid conflicts
+	if s.Shell.progressDisplay != nil {
+		s.Shell.progressDisplay.Disable()
+	}
+
+	// Start job event consumer to populate status bar
+	s.startJobEventConsumer()
+
 	// Main input loop
 	for {
 		select {
@@ -435,6 +456,11 @@ func (s *EnhancedShell) SetPrompt(prompt string) {
 func (s *EnhancedShell) shutdown() error {
 	fmt.Println("\nShutting down...")
 
+	// Stop status bar
+	if s.statusBar != nil {
+		s.statusBar.Stop()
+	}
+
 	// Close readline
 	if s.readline != nil {
 		s.readline.Close()
@@ -454,4 +480,57 @@ func (s *EnhancedShell) shutdown() error {
 
 	fmt.Println("Goodbye!")
 	return nil
+}
+
+// startJobEventConsumer starts consuming job events to update the status bar
+func (s *EnhancedShell) startJobEventConsumer() {
+	// Check if we have an enhanced job manager with events
+	if s.Shell.jobManager != nil {
+		go func() {
+			for event := range s.Shell.jobManager.GetDisplayUpdates() {
+				s.handleJobEvent(event)
+			}
+		}()
+	}
+}
+
+// handleJobEvent processes job events for status bar display
+func (s *EnhancedShell) handleJobEvent(event jobs.JobEvent) {
+	switch event.EventType {
+	case jobs.EventJobStarted:
+		// Create new status bar item for started job
+		item := CreateItemFromJobEvent(event)
+		item.Description = fmt.Sprintf("Started: %s", event.Message)
+		s.statusBar.AddItem(item)
+
+	case jobs.EventJobProgress:
+		// Update progress for existing item
+		if event.Data != nil {
+			current, _ := event.Data["current"].(int64)
+			total, _ := event.Data["total"].(int64)
+			s.statusBar.UpdateProgress(event.JobID, current, total, event.Message)
+		}
+
+	case jobs.EventJobCompleted:
+		// Remove completed job after a brief display
+		go func() {
+			// Show completion status briefly
+			item := CreateItemFromJobEvent(event)
+			item.Progress = 100
+			item.Status = "Completed"
+			s.statusBar.AddItem(item)
+
+			// Remove after 3 seconds
+			time.Sleep(3 * time.Second)
+			s.statusBar.RemoveItem(event.JobID)
+		}()
+
+	case jobs.EventJobCancelled, jobs.EventJobFailed:
+		// Show error and remove after delay
+		go func() {
+			s.statusBar.SetError(event.JobID, event.Message)
+			time.Sleep(5 * time.Second)
+			s.statusBar.RemoveItem(event.JobID)
+		}()
+	}
 }

@@ -15,6 +15,7 @@ import (
 type SimpleProgressDisplay struct {
 	jobManager  jobs.JobManager
 	dataSources map[string]datasource.DataSource
+	disabled    bool // Disable progress display when status bar is active
 }
 
 // NewSimpleProgressDisplay creates a new simple progress display
@@ -146,7 +147,7 @@ func (spd *SimpleProgressDisplay) monitorProgress(jobID, sourceName string) {
 
 // displayProgress displays the current progress
 func (spd *SimpleProgressDisplay) displayProgress(jobID string, status datasource.DownloadStatus) {
-	if !status.IsActive {
+	if !status.IsActive || spd.disabled {
 		return
 	}
 
@@ -167,4 +168,14 @@ func (spd *SimpleProgressDisplay) displayProgress(jobID string, status datasourc
 
 	// Flush the output
 	os.Stdout.Sync()
+}
+
+// Disable disables the progress display (used when status bar is active)
+func (spd *SimpleProgressDisplay) Disable() {
+	spd.disabled = true
+}
+
+// Enable enables the progress display
+func (spd *SimpleProgressDisplay) Enable() {
+	spd.disabled = false
 }
