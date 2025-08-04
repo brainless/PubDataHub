@@ -96,6 +96,10 @@ func (sb *StatusBar) AddItem(item *StatusBarItem) {
 	sb.mu.Lock()
 	defer sb.mu.Unlock()
 
+	// Debug: log when items are added (remove in production)
+	// fmt.Printf("DEBUG: Adding status bar item - ID: %s, Progress: %.1f%%, Status: %s\n", 
+	//	item.ID, item.Progress, item.Status)
+
 	sb.items[item.ID] = item
 	sb.updateVisibility()
 	sb.triggerUpdate()
@@ -241,6 +245,10 @@ func (sb *StatusBar) updateLoop() {
 func (sb *StatusBar) render() {
 	sb.mu.RLock()
 	defer sb.mu.RUnlock()
+
+	// Debug: log render attempts (remove in production)
+	// fmt.Printf("DEBUG: Status bar render - Visible: %t, Items: %d, ANSI: %t\n", 
+	//	sb.isVisible, len(sb.items), sb.terminal.IsANSISupported())
 
 	if !sb.isVisible || len(sb.items) == 0 {
 		return
