@@ -1,7 +1,7 @@
-# PubDataHub CLI - Project Overview for Gemini
+# PubDataHub - Interactive Data Hub Project Overview for Gemini
 
 ## Project Description
-PubDataHub is a Go-based command-line application designed to download and query data from various public data sources. It features a modular architecture to support multiple data sources and storage mechanisms.
+PubDataHub is an interactive terminal application built with Go. It allows users to download, manage, and query data from various public data sources in a responsive, non-blocking interface.
 
 ## Development Workflow
 - Create a new branch for each task
@@ -13,48 +13,52 @@ PubDataHub is a Go-based command-line application designed to download and query
 - After working on an issue from GitHub, update issue's tasks and open PR
 
 ## Architecture Highlights
-- **CLI Layer**: Handles command parsing and user interaction.
-- **Configuration Manager**: Manages application settings, primarily storage paths.
+- **Interactive TUI Layer**: Manages the user interface, command processing, and real-time display updates.
+- **Job Queue & Background Workers**: Executes long-running tasks (like downloads) concurrently without blocking the UI, with capabilities for pausing, resuming, and stopping jobs.
 - **Data Source Manager**: Orchestrates different data source implementations (e.g., Hacker News).
-- **Storage Layer**: Supports various storage backends (SQLite, CSV, JSON).
+- **Storage Layer**: Supports various storage backends (e.g., SQLite, CSV, JSON).
+- **Configuration Manager**: Manages application settings, including storage paths and download parameters.
 
 ## Core Components
-- **Configuration Manager**: Stores and retrieves configuration, validates paths, creates directories.
-- **Data Source Interface**: Defines common methods for all data sources (e.g., `Name()`, `StartDownload()`, `Query()`, `InitializeStorage()`).
-- **Hacker News Data Source**: Implements API integration, download strategy (initial/incremental sync, batching, rate limiting), and SQLite schema for Hacker News data.
-- **Download Manager**: Manages concurrent downloads, progress tracking, graceful shutdown, and retry logic.
-- **Query Engine**: Executes SQL queries (for SQLite), formats results, and provides query validation.
+- **Interactive Shell**: Provides a command-line interface with history, tab completion, and contextual help.
+- **Command Processor**: Parses and executes commands entered in the TUI.
+- **Job Manager**: Schedules, executes, and monitors the lifecycle of background jobs.
+- **Progress Tracker**: Monitors and displays real-time progress for active downloads.
+- **Data Source Interface**: Defines a standard contract for all data sources (`Name()`, `StartDownload()`, `Query()`, etc.).
+- **Hacker News Data Source**: Implements the logic for fetching and storing data from the Hacker News API.
+- **Query Engine**: Executes queries (primarily SQL for SQLite) against the stored data and formats the results.
 
-## CLI Interface
-- **Global Flags**: `--storage-path`, `--config`, `--verbose`, `--help`.
-- **Commands**:
-    - `config`: `set-storage`, `show`, `validate`.
-    - `sources`: `list`, `status <source>`, `download <source>`, `progress <source>`.
-    - `query`: `hackernews <SQL>`, `--interactive`, `--output`, `--file`.
+## Interactive Commands
+- **General**: `help`, `sources`, `status`
+- **Configuration**: `config set-storage <path>`, `config show`, `config validate`
+- **Downloading**: `download <source> [limit]`, `download <source> --resume`
+- **Job Management**: `jobs`, `jobs status`, `jobs pause <job_id>`, `jobs resume <job_id>`, `jobs stop <job_id>`
+- **Querying**: `query <source> "<SQL>"`, `search <source> "<term>"`
+- **Exporting**: `export <source> "<SQL>" --format <format> --file <path>`
+- **Interactive Query Mode**: `query <source> --interactive`
 
 ## File Structure (Key Directories/Files)
 - `cmd/main.go`: Main application entry point.
 - `internal/`: Internal packages and logic.
-- `pkg/`: Reusable packages.
-- `.goreleaser.yaml`: Release automation configuration.
-- `.pre-commit-config.yaml`: Pre-commit hooks configuration.
-- `.claude/settings.local.json`: Claude-specific settings.
-- `storage_path/`: (Runtime) `config.json`, `hackernews/data.sqlite`, `logs/pubdatahub.log`.
+  - `tui/`: Contains the interactive terminal UI components.
+  - `jobs/`: Manages background jobs and workers.
+  - `datasource/`: Home for data source implementations.
+  - `config/`: Configuration management.
+  - `download/`: Download management logic.
+  - `query/`: Query engine and session management.
+- `storage_path/`: (Runtime) `config.json`, `jobs/`, `hackernews/data.sqlite`, `logs/pubdatahub.log`.
 
 ## Dependencies (Go Libraries)
 - `github.com/spf13/cobra`: CLI framework.
 - `github.com/spf13/viper`: Configuration management.
+- `github.com/chzyer/readline`: For the interactive shell.
 - `github.com/mattn/go-sqlite3`: SQLite driver.
-- `net/http`, `encoding/json`, `context`: Standard Go libraries.
-- `github.com/schollz/progressbar/v3`: Progress bars.
-- `github.com/olekukonko/tablewriter`: Table formatting.
 - `github.com/sirupsen/logrus`: Logging.
-
-## Development Phases
-The project is structured into phases: Core Infrastructure, Hacker News Integration, Enhanced Features, and Polish/Optimization.
+- `github.com/stretchr/testify`: Testing framework.
 
 ## Key Considerations
-- **Error Handling**: Categorized errors (config, network, storage, data, user) with recovery mechanisms (retries, clear messages).
-- **Security**: Input validation, file permissions, API rate limiting, sensitive info avoidance.
-- **Performance**: Concurrent downloads, DB optimization, memory management, disk space monitoring.
-- **Extensibility**: Designed for easy addition of new data sources, storage backends, query languages, and export formats.
+- **Responsive UI**: The architecture ensures the UI remains interactive and responsive even during long-running background operations.
+- **Concurrency**: The application is designed to handle multiple downloads and user operations simultaneously.
+- **Error Handling**: Robust error handling with clear, contextual messages.
+- **Extensibility**: The modular design simplifies the addition of new data sources, commands, and storage formats.
+- **Resource Management**: Careful management of concurrent workers and system resources to prevent overload.
