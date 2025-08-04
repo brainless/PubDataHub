@@ -75,6 +75,9 @@ Future data sources:
 		Run: func(cmd *cobra.Command, args []string) {
 			// If no subcommands are provided, start interactive TUI
 			if len(args) == 0 {
+				// Reinitialize logger for TUI mode to reduce log noise
+				log.InitLoggerForTUI(verbose)
+				
 				// Try to create enhanced shell first
 				enhancedShell, err := tui.NewEnhancedShell()
 				if err != nil {
