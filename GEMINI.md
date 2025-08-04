@@ -12,7 +12,6 @@ PubDataHub is a Go-based command-line application designed to download and query
 - Please mention GitHub issue if provided
 - After working on an issue from GitHub, update issue's tasks and open PR
 
-
 ## Architecture Highlights
 - **CLI Layer**: Handles command parsing and user interaction.
 - **Configuration Manager**: Manages application settings, primarily storage paths.
