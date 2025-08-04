@@ -42,11 +42,26 @@ func NewStatusBar(terminal *TerminalManager) *StatusBar {
 	return &StatusBar{
 		terminal:   terminal,
 		items:      make(map[string]*StatusBarItem),
-		maxItems:   5, // Maximum number of concurrent status items to show
+		maxItems:   getMaxStatusItems(terminal), // Dynamic based on terminal size
 		isVisible:  false,
 		updateChan: make(chan struct{}, 1),
 		stopChan:   make(chan struct{}),
 	}
+}
+
+// getMaxStatusItems determines max items based on terminal size
+func getMaxStatusItems(terminal *TerminalManager) int {
+	size := terminal.GetSize()
+	// Reserve space for separator (1 line) + minimum content area (10 lines)
+	// Each status item takes 1 line
+	maxItems := (size.Height - 11) / 1
+	if maxItems < 1 {
+		maxItems = 1
+	}
+	if maxItems > 8 { // Cap at reasonable number
+		maxItems = 8
+	}
+	return maxItems
 }
 
 // Start begins the status bar update loop
@@ -110,13 +125,20 @@ func (sb *StatusBar) UpdateProgress(id string, current, total int64, message str
 		item.Status = message
 		item.LastUpdate = time.Now()
 
-		// Simple ETA calculation
+		// Improved ETA calculation
 		if item.Progress > 0 && item.Progress < 100 {
+			// Calculate based on time since job started (more accurate)
 			elapsed := time.Since(item.LastUpdate)
-			if elapsed > 0 {
-				remaining := (100 - item.Progress) / item.Progress
-				item.ETA = time.Duration(float64(elapsed) * remaining)
+			if elapsed > time.Second { // Only calculate ETA after reasonable time
+				progressRate := item.Progress / elapsed.Seconds()
+				if progressRate > 0 {
+					remainingProgress := 100 - item.Progress
+					etaSeconds := remainingProgress / progressRate
+					item.ETA = time.Duration(etaSeconds * float64(time.Second))
+				}
 			}
+		} else if item.Progress >= 100 {
+			item.ETA = 0 // Completed
 		}
 
 		sb.triggerUpdate()
@@ -283,10 +305,25 @@ func (sb *StatusBar) formatStatusLine(item *StatusBarItem, width int) string {
 		etaStr = fmt.Sprintf(" ETA: %s", sb.formatDuration(item.ETA))
 	}
 
+	// Choose appropriate icon based on job type
+	icon := "📥" // Default download icon
+	if strings.Contains(item.Type, "export") {
+		icon = "📤"
+	} else if strings.Contains(item.Type, "query") {
+		icon = "🔍"
+	}
+
+	// Shorten job ID if too long
+	displayID := item.ID
+	if len(displayID) > 20 {
+		displayID = displayID[:17] + "..."
+	}
+
 	// Create status line
-	statusLine := fmt.Sprintf("%s📥 %s: %s%s %.1f%% (%d/%d)%s%s",
+	statusLine := fmt.Sprintf("%s%s %s: %s%s %.1f%% (%d/%d)%s%s",
 		FgGreen,
-		item.ID,
+		icon,
+		displayID,
 		FgWhite,
 		progressBar,
 		item.Progress,
