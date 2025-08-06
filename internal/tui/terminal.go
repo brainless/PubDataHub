@@ -228,6 +228,32 @@ func (tm *TerminalManager) GetStatusBarStartRow() int {
 	return tm.size.Height - tm.statusBarHeight + 1
 }
 
+// GetStatusBarRow returns the exact row for the status bar (always last line)
+func (tm *TerminalManager) GetStatusBarRow() int {
+	return tm.size.Height
+}
+
+// SetupScrollingRegion sets up a scrolling region that excludes the status line
+func (tm *TerminalManager) SetupScrollingRegion() {
+	if !tm.isANSISupported {
+		return
+	}
+
+	// Set scrolling region from line 1 to (height-1), preserving last line
+	tm.updateSize()
+	fmt.Printf("\033[1;%dr", tm.size.Height-1)
+}
+
+// ResetScrollingRegion resets the scrolling region to full screen
+func (tm *TerminalManager) ResetScrollingRegion() {
+	if !tm.isANSISupported {
+		return
+	}
+
+	// Reset to full screen scrolling
+	fmt.Print("\033[r")
+}
+
 // EnableRawMode enables raw terminal mode (disable line buffering, echo, etc.)
 func (tm *TerminalManager) EnableRawMode() error {
 	if !term.IsTerminal(int(os.Stdin.Fd())) {

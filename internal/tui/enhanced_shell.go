@@ -284,14 +284,21 @@ func (s *EnhancedShell) Run() error {
 		}
 	}()
 
+	// Setup terminal for fixed layout
+	s.setupFixedLayout()
+
 	// Welcome message
 	fmt.Println("PubDataHub Enhanced Interactive Shell")
 	fmt.Println("Type 'help' for available commands or 'exit' to quit")
 	fmt.Println("Features: Command history, tab completion, multi-line support")
 	fmt.Println()
 
-	// Start status bar
+	// Always reserve bottom line for status - permanently
+	s.terminalManager.SetStatusBarHeight(1)
+
+	// Start status bar with persistent display
 	s.statusBar.Start()
+	s.statusBar.ShowPersistentStatusLine()
 
 	// Disable old progress display to avoid conflicts
 	if s.Shell.progressDisplay != nil {
@@ -307,6 +314,9 @@ func (s *EnhancedShell) Run() error {
 		case <-s.Shell.ctx.Done():
 			return s.shutdown()
 		default:
+			// Ensure prompt stays above status line before reading input
+			s.ensurePromptAboveStatusLine()
+
 			line, err := s.readline.Readline()
 			if err != nil {
 				if err == readline.ErrInterrupt {
@@ -461,9 +471,54 @@ func (s *EnhancedShell) SetPrompt(prompt string) {
 	}
 }
 
+// setupFixedLayout initializes the terminal for fixed layout with reserved status line
+func (s *EnhancedShell) setupFixedLayout() {
+	// Clear screen and move cursor to top
+	if s.terminalManager.IsANSISupported() {
+		fmt.Print("\033[2J\033[1;1H")
+
+		// Set up the scrolling region to exclude the last line
+		s.terminalManager.SetupScrollingRegion()
+	}
+}
+
+// ensurePromptAboveStatusLine ensures the prompt never overlaps with the status line
+func (s *EnhancedShell) ensurePromptAboveStatusLine() {
+	if !s.terminalManager.IsANSISupported() {
+		return
+	}
+
+	// Check if cursor is at the last line (where status should be)
+	// If so, scroll up one line to make room for prompt
+	if s.isAtLastLine() {
+		// Scroll up by printing a newline, then move cursor up
+		fmt.Print("\n")
+		fmt.Print(s.terminalManager.MoveCursorUp(1))
+	}
+
+	// Ensure the status bar area is always reserved
+	s.terminalManager.SetStatusBarHeight(1)
+}
+
+// isAtLastLine checks if the cursor is currently at the last line
+func (s *EnhancedShell) isAtLastLine() bool {
+	if !s.terminalManager.IsANSISupported() {
+		return false
+	}
+
+	// For now, we'll be conservative and assume we need to make room
+	// This ensures the prompt never gets to the last line
+	return true // Always ensure there's room
+}
+
 // shutdown performs graceful shutdown
 func (s *EnhancedShell) shutdown() error {
 	fmt.Println("\nShutting down...")
+
+	// Reset scrolling region
+	if s.terminalManager != nil {
+		s.terminalManager.ResetScrollingRegion()
+	}
 
 	// Stop status bar
 	if s.statusBar != nil {
@@ -506,9 +561,9 @@ func (s *EnhancedShell) startJobEventConsumer() {
 // handleJobEvent processes job events for status bar display
 func (s *EnhancedShell) handleJobEvent(event jobs.JobEvent) {
 	// Debug: log all job events to see what's happening (remove in production)
-	// log.Logger.Infof("Status Bar: Received job event - Type: %s, JobID: %s, Message: %s", 
+	// log.Logger.Infof("Status Bar: Received job event - Type: %s, JobID: %s, Message: %s",
 	//	event.EventType, event.JobID, event.Message)
-	
+
 	switch event.EventType {
 	case jobs.EventJobSubmitted, jobs.EventJobStarted:
 		// Create new status bar item for submitted/started job

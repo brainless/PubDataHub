@@ -97,7 +97,7 @@ func (sb *StatusBar) AddItem(item *StatusBarItem) {
 	defer sb.mu.Unlock()
 
 	// Debug: log when items are added (remove in production)
-	// fmt.Printf("DEBUG: Adding status bar item - ID: %s, Progress: %.1f%%, Status: %s\n", 
+	// fmt.Printf("DEBUG: Adding status bar item - ID: %s, Progress: %.1f%%, Status: %s\n",
 	//	item.ID, item.Progress, item.Status)
 
 	sb.items[item.ID] = item
@@ -164,16 +164,9 @@ func (sb *StatusBar) SetError(id string, err string) {
 
 // updateVisibility determines if status bar should be visible
 func (sb *StatusBar) updateVisibility() {
-	shouldBeVisible := len(sb.items) > 0
-
-	if shouldBeVisible != sb.isVisible {
-		sb.isVisible = shouldBeVisible
-		if sb.isVisible {
-			sb.show()
-		} else {
-			sb.hide()
-		}
-	}
+	// Always keep status bar visible in persistent mode
+	sb.isVisible = true
+	sb.show()
 }
 
 // show displays the status bar and reserves terminal space
@@ -198,6 +191,47 @@ func (sb *StatusBar) Hide() {
 	sb.mu.Lock()
 	defer sb.mu.Unlock()
 	sb.hide()
+}
+
+// ShowPersistentStatusLine shows a persistent status line even when no jobs are active
+func (sb *StatusBar) ShowPersistentStatusLine() {
+	sb.mu.Lock()
+	defer sb.mu.Unlock()
+
+	// Always show the status bar area, even when empty
+	sb.isVisible = true
+	sb.terminal.SetStatusBarHeight(1)
+	sb.lastHeight = 1
+
+	// Render the persistent status line
+	sb.renderPersistentStatusLine()
+}
+
+// renderPersistentStatusLine renders a status line even when no jobs are active
+func (sb *StatusBar) renderPersistentStatusLine() {
+	if !sb.terminal.IsANSISupported() {
+		return
+	}
+
+	size := sb.terminal.GetSize()
+	statusRow := size.Height // Always use the last line
+
+	// Save cursor position
+	fmt.Print(sb.terminal.SaveCursor())
+
+	// Move to last line and render status
+	fmt.Print(sb.terminal.MoveCursor(statusRow, 1))
+	fmt.Print(sb.terminal.ClearCurrentLine())
+
+	// Show default status when no jobs are running
+	if len(sb.items) == 0 {
+		statusLine := fmt.Sprintf("%s📊 Ready - No active downloads%s", FgCyan, Reset)
+		fmt.Print(statusLine)
+	}
+
+	// Restore cursor position
+	fmt.Print(sb.terminal.RestoreCursor())
+	os.Stdout.Sync()
 }
 
 // calculateRequiredHeight determines how many lines the status bar needs
@@ -246,48 +280,40 @@ func (sb *StatusBar) render() {
 	sb.mu.RLock()
 	defer sb.mu.RUnlock()
 
-	// Debug: log render attempts (remove in production)
-	// fmt.Printf("DEBUG: Status bar render - Visible: %t, Items: %d, ANSI: %t\n", 
-	//	sb.isVisible, len(sb.items), sb.terminal.IsANSISupported())
-
-	if !sb.isVisible || len(sb.items) == 0 {
-		return
-	}
-
 	// Don't update if terminal doesn't support ANSI
 	if !sb.terminal.IsANSISupported() {
 		return
 	}
 
+	// Always render the status area, but show different content based on job state
+	if len(sb.items) == 0 {
+		sb.renderPersistentStatusLine()
+		return
+	}
+
 	size := sb.terminal.GetSize()
-	startRow := sb.terminal.GetStatusBarStartRow()
+	statusRow := size.Height // Always use the last line for status
 
 	// Save cursor position
 	fmt.Print(sb.terminal.SaveCursor())
 
-	// Move to status bar area and clear it
-	fmt.Print(sb.terminal.MoveCursor(startRow, 1))
+	// Move to status line and clear it
+	fmt.Print(sb.terminal.MoveCursor(statusRow, 1))
+	fmt.Print(sb.terminal.ClearCurrentLine())
 
-	// Draw separator line
-	separator := strings.Repeat("═", size.Width)
-	fmt.Printf("%s%s%s", sb.terminal.ClearCurrentLine(), FgCyan, separator)
-
-	// Draw status items
-	row := startRow + 1
-	count := 0
+	// Draw the most important/recent status item on the single status line
+	var mostRecentItem *StatusBarItem
+	var latestTime time.Time
 	for _, item := range sb.items {
-		if count >= sb.maxItems {
-			break
+		if item.LastUpdate.After(latestTime) {
+			latestTime = item.LastUpdate
+			mostRecentItem = item
 		}
+	}
 
-		fmt.Print(sb.terminal.MoveCursor(row, 1))
-		fmt.Print(sb.terminal.ClearCurrentLine())
-
-		statusLine := sb.formatStatusLine(item, size.Width)
+	if mostRecentItem != nil {
+		statusLine := sb.formatStatusLine(mostRecentItem, size.Width)
 		fmt.Print(statusLine)
-
-		row++
-		count++
 	}
 
 	// Restore cursor position

@@ -48,12 +48,12 @@ func (s *EnhancedShell) DemoStatusBar() {
 	}
 
 	// Simulate progress over 10 seconds with immediate feedback
-	fmt.Println("Adding items to status bar...") 
-	
+	fmt.Println("Adding items to status bar...")
+
 	// Show immediate confirmation
 	time.Sleep(500 * time.Millisecond)
 	fmt.Println("Status bar should now be visible at the bottom!")
-	
+
 	go func() {
 		for i := 0; i < 100; i++ { // 10 seconds at 100ms intervals
 			time.Sleep(100 * time.Millisecond)

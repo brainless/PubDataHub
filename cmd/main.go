@@ -77,7 +77,7 @@ Future data sources:
 			if len(args) == 0 {
 				// Reinitialize logger for TUI mode to reduce log noise
 				log.InitLoggerForTUI(verbose)
-				
+
 				// Try to create enhanced shell first
 				enhancedShell, err := tui.NewEnhancedShell()
 				if err != nil {
