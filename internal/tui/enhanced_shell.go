@@ -8,8 +8,10 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/brainless/PubDataHub/internal/command"
+	"github.com/brainless/PubDataHub/internal/jobs"
 	"github.com/brainless/PubDataHub/internal/log"
 	"github.com/chzyer/readline"
 )
@@ -24,6 +26,8 @@ type EnhancedShell struct {
 	prompt             string
 	aliasManager       *AliasManager
 	workspaceManager   *WorkspaceManager
+	terminalManager    *TerminalManager
+	statusBar          *StatusBar
 }
 
 // NewEnhancedShell creates a new enhanced shell instance
@@ -55,6 +59,10 @@ func NewEnhancedShell() (*EnhancedShell, error) {
 		log.Logger.Warnf("Failed to create workspace manager: %v", err)
 	}
 
+	// Initialize terminal manager and status bar
+	terminalManager := NewTerminalManager()
+	statusBar := NewStatusBar(terminalManager)
+
 	shell := &EnhancedShell{
 		Shell:              baseShell,
 		registry:           NewCommandRegistry(),
@@ -62,6 +70,8 @@ func NewEnhancedShell() (*EnhancedShell, error) {
 		prompt:             "> ",
 		aliasManager:       aliasManager,
 		workspaceManager:   workspaceManager,
+		terminalManager:    terminalManager,
+		statusBar:          statusBar,
 	}
 
 	// Set up history file
@@ -254,6 +264,9 @@ func (s *EnhancedShell) registerCommands() {
 	if s.workspaceManager != nil {
 		s.registry.Register("workspace", NewWorkspaceCommand(s.workspaceManager))
 	}
+
+	// Register demo command for testing
+	s.registry.Register("demo-status", NewDemoCommand(s))
 }
 
 // Run starts the enhanced interactive shell
@@ -271,11 +284,29 @@ func (s *EnhancedShell) Run() error {
 		}
 	}()
 
+	// Setup terminal for fixed layout
+	s.setupFixedLayout()
+
 	// Welcome message
 	fmt.Println("PubDataHub Enhanced Interactive Shell")
 	fmt.Println("Type 'help' for available commands or 'exit' to quit")
 	fmt.Println("Features: Command history, tab completion, multi-line support")
 	fmt.Println()
+
+	// Always reserve bottom line for status - permanently
+	s.terminalManager.SetStatusBarHeight(1)
+
+	// Start status bar with persistent display
+	s.statusBar.Start()
+	s.statusBar.ShowPersistentStatusLine()
+
+	// Disable old progress display to avoid conflicts
+	if s.Shell.progressDisplay != nil {
+		s.Shell.progressDisplay.Disable()
+	}
+
+	// Start job event consumer to populate status bar
+	s.startJobEventConsumer()
 
 	// Main input loop
 	for {
@@ -283,6 +314,9 @@ func (s *EnhancedShell) Run() error {
 		case <-s.Shell.ctx.Done():
 			return s.shutdown()
 		default:
+			// Ensure prompt stays above status line before reading input
+			s.ensurePromptAboveStatusLine()
+
 			line, err := s.readline.Readline()
 			if err != nil {
 				if err == readline.ErrInterrupt {
@@ -390,6 +424,12 @@ func (s *EnhancedShell) processCommand(input string) error {
 		return s.processLegacyCommand(input)
 	}
 
+	// Handle demo command directly for testing
+	if err != nil && strings.HasPrefix(input, "demo-status") {
+		s.DemoStatusBar()
+		return nil
+	}
+
 	return err
 }
 
@@ -431,9 +471,59 @@ func (s *EnhancedShell) SetPrompt(prompt string) {
 	}
 }
 
+// setupFixedLayout initializes the terminal for fixed layout with reserved status line
+func (s *EnhancedShell) setupFixedLayout() {
+	// Clear screen and move cursor to top
+	if s.terminalManager.IsANSISupported() {
+		fmt.Print("\033[2J\033[1;1H")
+
+		// Set up the scrolling region to exclude the last line
+		s.terminalManager.SetupScrollingRegion()
+	}
+}
+
+// ensurePromptAboveStatusLine ensures the prompt never overlaps with the status line
+func (s *EnhancedShell) ensurePromptAboveStatusLine() {
+	if !s.terminalManager.IsANSISupported() {
+		return
+	}
+
+	// Check if cursor is at the last line (where status should be)
+	// If so, scroll up one line to make room for prompt
+	if s.isAtLastLine() {
+		// Scroll up by printing a newline, then move cursor up
+		fmt.Print("\n")
+		fmt.Print(s.terminalManager.MoveCursorUp(1))
+	}
+
+	// Ensure the status bar area is always reserved
+	s.terminalManager.SetStatusBarHeight(1)
+}
+
+// isAtLastLine checks if the cursor is currently at the last line
+func (s *EnhancedShell) isAtLastLine() bool {
+	if !s.terminalManager.IsANSISupported() {
+		return false
+	}
+
+	// For now, we'll be conservative and assume we need to make room
+	// This ensures the prompt never gets to the last line
+	return true // Always ensure there's room
+}
+
 // shutdown performs graceful shutdown
 func (s *EnhancedShell) shutdown() error {
 	fmt.Println("\nShutting down...")
+
+	// Reset scrolling region
+	if s.terminalManager != nil {
+		s.terminalManager.ResetScrollingRegion()
+	}
+
+	// Stop status bar
+	if s.statusBar != nil {
+		s.statusBar.Stop()
+	}
 
 	// Close readline
 	if s.readline != nil {
@@ -454,4 +544,61 @@ func (s *EnhancedShell) shutdown() error {
 
 	fmt.Println("Goodbye!")
 	return nil
+}
+
+// startJobEventConsumer starts consuming job events to update the status bar
+func (s *EnhancedShell) startJobEventConsumer() {
+	// Check if we have an enhanced job manager with events
+	if s.Shell.jobManager != nil {
+		go func() {
+			for event := range s.Shell.jobManager.GetDisplayUpdates() {
+				s.handleJobEvent(event)
+			}
+		}()
+	}
+}
+
+// handleJobEvent processes job events for status bar display
+func (s *EnhancedShell) handleJobEvent(event jobs.JobEvent) {
+	// Debug: log all job events to see what's happening (remove in production)
+	// log.Logger.Infof("Status Bar: Received job event - Type: %s, JobID: %s, Message: %s",
+	//	event.EventType, event.JobID, event.Message)
+
+	switch event.EventType {
+	case jobs.EventJobSubmitted, jobs.EventJobStarted:
+		// Create new status bar item for submitted/started job
+		item := CreateItemFromJobEvent(event)
+		item.Description = fmt.Sprintf("Started: %s", event.Message)
+		s.statusBar.AddItem(item)
+
+	case jobs.EventJobProgress:
+		// Update progress for existing item
+		if event.Data != nil {
+			current, _ := event.Data["current"].(int64)
+			total, _ := event.Data["total"].(int64)
+			s.statusBar.UpdateProgress(event.JobID, current, total, event.Message)
+		}
+
+	case jobs.EventJobCompleted:
+		// Remove completed job after a brief display
+		go func() {
+			// Show completion status briefly
+			item := CreateItemFromJobEvent(event)
+			item.Progress = 100
+			item.Status = "Completed"
+			s.statusBar.AddItem(item)
+
+			// Remove after 3 seconds
+			time.Sleep(3 * time.Second)
+			s.statusBar.RemoveItem(event.JobID)
+		}()
+
+	case jobs.EventJobCancelled, jobs.EventJobFailed:
+		// Show error and remove after delay
+		go func() {
+			s.statusBar.SetError(event.JobID, event.Message)
+			time.Sleep(5 * time.Second)
+			s.statusBar.RemoveItem(event.JobID)
+		}()
+	}
 }
