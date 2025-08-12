@@ -13,11 +13,17 @@ const fetchDataSources = async (): Promise<DataSource[]> => {
   try {
     const response = await fetch('/api/sources')
     if (!response.ok) {
-      throw new Error('Failed to fetch data sources')
+      throw new Error(`HTTP ${response.status}: Failed to fetch data sources`)
     }
+    
+    const contentType = response.headers.get('content-type')
+    if (!contentType || !contentType.includes('application/json')) {
+      throw new Error('Response is not JSON')
+    }
+    
     return await response.json()
   } catch (error) {
-    console.warn('API not available, using mock data:', error)
+    console.warn('API not available, using mock data:', error instanceof Error ? error.message : String(error))
     return [
       {
         id: 'hackernews',
@@ -114,7 +120,7 @@ export default function Homepage() {
   const [dataSources] = createResource(fetchDataSources)
 
   return (
-    <div class="min-h-screen bg-gray-50">
+    <div class="bg-gray-50">
       <div class="max-w-7xl mx-auto px-4 py-8">
         <div class="mb-8">
           <h1 class="text-2xl font-bold text-gray-900 mb-2">Data Sources</h1>
