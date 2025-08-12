@@ -62,3 +62,6 @@ dist/
 
 # Crush directory
 .crush/
+
+# Testing logs go here
+test_logs/

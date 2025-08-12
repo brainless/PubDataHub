@@ -3,9 +3,9 @@
 ## Project Description
 PubDataHub is an interactive terminal application built with Go. It allows users to download, manage, and query data from various public data sources in a responsive, non-blocking interface.
 
-## Development Workflow
+# Development Workflow
 - Create a new branch for each task
-- Branch names should start with chore/ or feature/ or fix/
+- Branch names should start with `feature/`, `chore/` or `fix/`
 - Please add tests for any new features added, particularly integration tests
 - Please run formatters, linters and tests before committing changes
 - When finished please commit and push to the new branch

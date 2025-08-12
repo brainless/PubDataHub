@@ -6,9 +6,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 PubDataHub is an interactive terminal application that enables users to download and query data from various public data sources. The application provides a Claude Code-style interactive interface where downloads happen in background workers while the UI remains responsive for queries and other operations.
 
-## Development Workflow
+# Development Workflow
 - Create a new branch for each task
-- Branch names should start with chore/ or feature/ or fix/
+- Branch names should start with `feature/`, `chore/` or `fix/`
 - Please add tests for any new features added, particularly integration tests
 - Please run formatters, linters and tests before committing changes
 - When finished please commit and push to the new branch
