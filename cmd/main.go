@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/brainless/PubDataHub/internal/api"
 	"github.com/brainless/PubDataHub/internal/config"
 	"github.com/brainless/PubDataHub/internal/datasource"
 	"github.com/brainless/PubDataHub/internal/datasource/hackernews"
@@ -113,6 +114,7 @@ Future data sources:
 	rootCmd.AddCommand(newConfigCmd())
 	rootCmd.AddCommand(newSourcesCmd())
 	rootCmd.AddCommand(newQueryCmd())
+	rootCmd.AddCommand(newServeCmd())
 
 	return rootCmd
 }
@@ -422,4 +424,47 @@ func newQueryCmd() *cobra.Command {
 	queryCmd.Flags().String("file", "", "Output file path")
 
 	return queryCmd
+}
+
+func newServeCmd() *cobra.Command {
+	serveCmd := &cobra.Command{
+		Use:   "serve",
+		Short: "Start the web API server",
+		Long:  "Start the web API server to serve HTTP requests",
+		Run: func(cmd *cobra.Command, args []string) {
+			port, _ := cmd.Flags().GetString("port")
+			addr := fmt.Sprintf(":%s", port)
+
+			// Create and start the server
+			server := api.NewServer(addr)
+
+			// Start server in a goroutine to allow for graceful shutdown
+			go func() {
+				if err := server.Start(); err != nil {
+					log.Logger.Errorf("Server error: %v", err)
+					os.Exit(1)
+				}
+			}()
+
+			log.Logger.Infof("API server started on port %s", port)
+			log.Logger.Info("Press Ctrl+C to stop the server")
+
+			// Wait for interrupt signal to gracefully shutdown the server
+			<-context.Background().Done()
+
+			// Gracefully shutdown the server
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			if err := server.Stop(ctx); err != nil {
+				log.Logger.Errorf("Server shutdown error: %v", err)
+			}
+
+			log.Logger.Info("Server stopped")
+		},
+	}
+
+	serveCmd.Flags().StringP("port", "P", "8080", "Port to listen on")
+
+	return serveCmd
 }
