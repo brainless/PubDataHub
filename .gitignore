@@ -65,3 +65,4 @@ dist/
 
 # Testing logs go here
 test_logs/
+pubdatahub-*
