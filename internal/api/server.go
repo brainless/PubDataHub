@@ -24,14 +24,21 @@ func NewServer(addr string) *Server {
 	// Add a basic root endpoint
 	mux.HandleFunc("/", rootHandler)
 
+	// Create server instance
 	httpServer := &http.Server{
 		Addr:    addr,
 		Handler: mux,
 	}
 
-	return &Server{
+	server := &Server{
 		httpServer: httpServer,
 	}
+
+	// Register API routes
+	server.registerSourcesRoutes()
+	server.registerJobsRoutes()
+
+	return server
 }
 
 // Start starts the API server
