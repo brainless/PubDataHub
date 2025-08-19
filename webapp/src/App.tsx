@@ -1,4 +1,4 @@
-import { Router, Routes, Route } from '@solidjs/router'
+import { Router, Route } from 'solid-app-router'
 import Navigation from './components/Navigation'
 import Homepage from './components/Homepage'
 import DataSourceDetail from './components/DataSourceDetail'
@@ -9,10 +9,8 @@ function App() {
     <div class="min-h-screen bg-gray-50">
       <Router>
         <Navigation />
-        <Routes>
-          <Route path="/" element={<Homepage />} />
-          <Route path="/sources/:sourceName" element={<DataSourceDetail />} />
-        </Routes>
+        <Route path="/" component={Homepage} />
+        <Route path="/sources/:sourceName" component={DataSourceDetail} />
       </Router>
     </div>
   )
