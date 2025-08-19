@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@kobalte/core": "^0.13.11",
+    "solid-app-router": "^0.4.2",
     "solid-js": "^1.9.8"
   },
   "devDependencies": {

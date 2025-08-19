@@ -71,18 +71,18 @@ export default function Navigation() {
                   }>
                     {(source) => (
                       <DropdownMenu.Item class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">
-                        <div class="flex items-center space-x-3 w-full">
-                          <div class={`w-2 h-2 rounded-full ${
-                            source.status === 'connected' ? 'bg-green-400' :
-                            source.status === 'error' ? 'bg-red-400' : 
-                            'bg-gray-400'
-                          }`} />
-                          <div class="flex-1">
-                            <div class="font-medium">{source.name}</div>
-                            <div class="text-xs text-gray-500">{source.description}</div>
-                          </div>
-                        </div>
-                      </DropdownMenu.Item>
+                <a href={`/sources/${source.id}`} class="flex items-center space-x-3 w-full">
+                  <div class={`w-2 h-2 rounded-full ${
+                    source.status === 'connected' ? 'bg-green-400' :
+                    source.status === 'error' ? 'bg-red-400' : 
+                    'bg-gray-400'
+                  }`} />
+                  <div class="flex-1">
+                    <div class="font-medium">{source.name}</div>
+                    <div class="text-xs text-gray-500">{source.description}</div>
+                  </div>
+                </a>
+              </DropdownMenu.Item>
                     )}
                   </For>
                 </div>

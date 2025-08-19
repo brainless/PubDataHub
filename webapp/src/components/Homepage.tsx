@@ -92,16 +92,16 @@ function DataSourceCard({ source }: { source: DataSource }) {
       </div>
 
       <div class="mt-4 flex space-x-2">
-        <button 
+        <a
+          href={`/sources/${source.id}`}
           class={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
             source.status === 'connected' 
               ? 'bg-blue-50 text-blue-700 hover:bg-blue-100' 
               : 'bg-green-50 text-green-700 hover:bg-green-100'
           }`}
-          onClick={() => console.log(`Connect to ${source.name}`)}
         >
-          {source.status === 'connected' ? 'Query' : 'Connect'}
-        </button>
+          {source.status === 'connected' ? 'View Data' : 'Connect'}
+        </a>
         
         {source.status === 'connected' && (
           <button 
