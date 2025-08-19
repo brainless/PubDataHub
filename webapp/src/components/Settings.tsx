@@ -1,4 +1,4 @@
-import { createResource, createSignal } from 'solid-js'
+import { createResource, createSignal, onCleanup } from 'solid-js'
 import { useNavigate } from '@solidjs/router'
 
 interface JobInfo {
@@ -43,6 +43,16 @@ export default function Settings() {
       console.error('Failed to fetch jobs:', error)
       return []
     }
+  })
+  
+  // Set up periodic refresh of jobs data
+  const intervalId = setInterval(() => {
+    refetch()
+  }, 5000) // Refresh every 5 seconds
+  
+  // Clean up interval on component unmount
+  onCleanup(() => {
+    clearInterval(intervalId)
   })
   
   const [loading, setLoading] = createSignal(false)
@@ -99,7 +109,8 @@ export default function Settings() {
       })
       
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+        const errorText = await response.text()
+        throw new Error(`HTTP ${response.status}: ${errorText || response.statusText}`)
       }
       
       // Refetch jobs to update the list
@@ -126,7 +137,8 @@ export default function Settings() {
       })
       
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+        const errorText = await response.text()
+        throw new Error(`HTTP ${response.status}: ${errorText || response.statusText}`)
       }
       
       // Refetch jobs to update the list
@@ -196,8 +208,9 @@ export default function Settings() {
     if (!jobs() || jobs().length === 0) {
       return (
         <div class="bg-gray-50 border border-gray-200 rounded-lg p-8 text-center">
-          <div class="text-gray-500 font-medium mb-2">No Active Downloads</div>
-          <p class="text-gray-400 text-sm">There are no active or completed downloads at this time.</p>
+          <div class="text-gray-500 font-medium mb-2">No Downloads</div>
+          <p class="text-gray-400 text-sm mb-4">There are no active or completed downloads at this time.</p>
+          <p class="text-gray-400 text-sm">Start a download from the Data Sources page to see it here.</p>
         </div>
       )
     }
@@ -262,9 +275,18 @@ export default function Settings() {
       </div>
       
       <div class="bg-white shadow rounded-lg overflow-hidden">
-        <div class="px-6 py-4 border-b border-gray-200">
-          <h2 class="text-lg font-medium text-gray-900">Downloads Manager</h2>
-          <p class="text-sm text-gray-500 mt-1">Monitor and control your data downloads</p>
+        <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+          <div>
+            <h2 class="text-lg font-medium text-gray-900">Downloads Manager</h2>
+            <p class="text-sm text-gray-500 mt-1">Monitor and control your data downloads</p>
+          </div>
+          <button
+            onClick={() => refetch()}
+            class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors disabled:opacity-50"
+            disabled={jobs.loading || loading()}
+          >
+            Refresh
+          </button>
         </div>
         
         <div class="p-6">
