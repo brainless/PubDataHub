@@ -51,7 +51,7 @@ func convertJobStatusToJobInfo(status *jobs.JobStatus) JobInfo {
 func (s *Server) getJobsHandler(w http.ResponseWriter, r *http.Request) {
 	// Use the job manager to list jobs
 	filter := jobs.JobFilter{}
-	
+
 	jobsList, err := s.jobManager.ListJobs(filter)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to list jobs: %v", err), http.StatusInternalServerError)

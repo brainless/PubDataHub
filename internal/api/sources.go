@@ -27,11 +27,11 @@ type DataSourceItem struct {
 
 // GetDataResponse represents the response structure for data retrieval
 type GetDataResponse struct {
-	Data       []DataSourceItem `json:"data"`
-	TotalItems int              `json:"total_items"`
-	TotalPages int              `json:"total_pages"`
-	CurrentPage int             `json:"current_page"`
-	ItemsPerPage int           `json:"items_per_page"`
+	Data         []DataSourceItem `json:"data"`
+	TotalItems   int              `json:"total_items"`
+	TotalPages   int              `json:"total_pages"`
+	CurrentPage  int              `json:"current_page"`
+	ItemsPerPage int              `json:"items_per_page"`
 }
 
 // getSourcesHandler handles requests to list available data sources
@@ -60,34 +60,34 @@ func (s *Server) getDataHandler(w http.ResponseWriter, r *http.Request) {
 	// The path will be like /api/sources/hackernews/data
 	path := strings.TrimPrefix(r.URL.Path, "/api/sources/")
 	parts := strings.SplitN(path, "/", 2)
-	
+
 	var sourceName string
 	if len(parts) > 0 {
 		sourceName = parts[0]
 	}
-	
+
 	// Validate source name
 	if sourceName != "hackernews" {
 		http.Error(w, "Unsupported data source", http.StatusNotFound)
 		return
 	}
-	
+
 	// Get query parameters for pagination
 	page := 1
 	limit := 20
-	
+
 	if param := r.URL.Query().Get("page"); param != "" {
 		if p, err := strconv.Atoi(param); err == nil && p > 0 {
 			page = p
 		}
 	}
-	
+
 	if param := r.URL.Query().Get("limit"); param != "" {
 		if l, err := strconv.Atoi(param); err == nil && l > 0 {
 			limit = l
 		}
 	}
-	
+
 	// Mock data - in a real implementation, this would come from the actual data source
 	// Here we'll simulate some data for demonstration purposes
 	mockData := []DataSourceItem{
@@ -252,29 +252,29 @@ func (s *Server) getDataHandler(w http.ResponseWriter, r *http.Request) {
 			Type:      "story",
 		},
 	}
-	
+
 	// Calculate pagination
 	totalItems := len(mockData)
 	totalPages := (totalItems + limit - 1) / limit // Ceiling division
 	currentPage := page
-	
+
 	// Adjust page if it exceeds total pages
 	if currentPage > totalPages {
 		currentPage = totalPages
 	}
-	
+
 	// Calculate start and end indices
 	startIndex := (currentPage - 1) * limit
 	endIndex := startIndex + limit
-	
+
 	// Ensure endIndex doesn't exceed slice length
 	if endIndex > totalItems {
 		endIndex = totalItems
 	}
-	
+
 	// Slice the data for current page
 	pageData := mockData[startIndex:endIndex]
-	
+
 	// Prepare response
 	response := GetDataResponse{
 		Data:         pageData,
@@ -283,10 +283,10 @@ func (s *Server) getDataHandler(w http.ResponseWriter, r *http.Request) {
 		CurrentPage:  currentPage,
 		ItemsPerPage: limit,
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	
+
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		http.Error(w, "Failed to encode data", http.StatusInternalServerError)
 		return
