@@ -1,5 +1,5 @@
 import { createSignal, Show } from 'solid-js'
-import { useParams } from 'solid-app-router'
+import { useLocation } from '@solidjs/router'
 
 interface DataSourceItem {
   id: string
@@ -20,8 +20,9 @@ interface Pagination {
 }
 
 export default function DataSourceDetail() {
-  const params = useParams()
-  const sourceName = params.sourceName
+  const location = useLocation()
+  // Extract source name from URL path
+  const sourceName = location.pathname.split('/')[3] || ''
   
   // State for pagination
   const [pagination, setPagination] = createSignal<Pagination>({

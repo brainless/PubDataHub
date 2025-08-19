@@ -1,4 +1,4 @@
-import { Router, Routes, Route } from 'solid-app-router'
+import { Router, Routes, Route } from '@solidjs/router'
 import Navigation from './components/Navigation'
 import Homepage from './components/Homepage'
 import DataSourceDetail from './components/DataSourceDetail'
