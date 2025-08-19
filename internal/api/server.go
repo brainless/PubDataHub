@@ -6,16 +6,18 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/brainless/PubDataHub/internal/jobs"
 	"github.com/brainless/PubDataHub/internal/log"
 )
 
 // Server represents the API server
 type Server struct {
 	httpServer *http.Server
+	jobManager jobs.JobManager
 }
 
 // NewServer creates a new API server instance
-func NewServer(addr string) *Server {
+func NewServer(addr string, jobManager jobs.JobManager) *Server {
 	mux := http.NewServeMux()
 
 	// Add a basic health check endpoint
@@ -32,6 +34,7 @@ func NewServer(addr string) *Server {
 
 	server := &Server{
 		httpServer: httpServer,
+		jobManager: jobManager,
 	}
 
 	// Register API routes
