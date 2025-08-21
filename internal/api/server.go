@@ -4,42 +4,62 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/brainless/PubDataHub/internal/jobs"
 	"github.com/brainless/PubDataHub/internal/log"
+	"github.com/brainless/PubDataHub/internal/web"
 )
+
+// ServerConfig represents server configuration options
+type ServerConfig struct {
+	ServeStatic bool // Whether to serve static frontend files
+}
 
 // Server represents the API server
 type Server struct {
 	httpServer *http.Server
 	jobManager jobs.JobManager
+	config     ServerConfig
 }
 
-// NewServer creates a new API server instance
+// NewServer creates a new API-only server instance
 func NewServer(addr string, jobManager jobs.JobManager) *Server {
+	return NewServerWithConfig(addr, jobManager, ServerConfig{ServeStatic: false})
+}
+
+// NewWebAppServer creates a new server instance that serves both API and static frontend
+func NewWebAppServer(addr string, jobManager jobs.JobManager) *Server {
+	return NewServerWithConfig(addr, jobManager, ServerConfig{ServeStatic: true})
+}
+
+// NewServerWithConfig creates a new server instance with custom configuration
+func NewServerWithConfig(addr string, jobManager jobs.JobManager, config ServerConfig) *Server {
 	mux := http.NewServeMux()
 
-	// Add a basic health check endpoint
-	mux.HandleFunc("/health", healthHandler)
+	server := &Server{
+		jobManager: jobManager,
+		config:     config,
+	}
 
-	// Add a basic root endpoint
-	mux.HandleFunc("/", rootHandler)
+	// Register API routes first
+	server.registerAPIRoutes(mux)
+
+	// Configure static file serving if enabled
+	if config.ServeStatic {
+		server.registerStaticRoutes(mux)
+	} else {
+		// Add basic endpoints for API-only mode
+		mux.HandleFunc("/health", healthHandler)
+		mux.HandleFunc("/", rootHandler)
+	}
 
 	// Create server instance
-	httpServer := &http.Server{
+	server.httpServer = &http.Server{
 		Addr:    addr,
 		Handler: mux,
 	}
-
-	server := &Server{
-		httpServer: httpServer,
-		jobManager: jobManager,
-	}
-
-	// Register API routes
-	server.registerSourcesRoutes()
-	server.registerJobsRoutes()
 
 	return server
 }
@@ -69,7 +89,44 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, `{"status": "ok", "timestamp": "%s"}`, time.Now().Format(time.RFC3339))
 }
 
-// rootHandler handles root path requests
+// registerAPIRoutes registers all API routes
+func (s *Server) registerAPIRoutes(mux *http.ServeMux) {
+	// Health check endpoint
+	mux.HandleFunc("GET /health", healthHandler)
+	
+	// API routes
+	s.registerSourcesRoutesOnMux(mux)
+	s.registerJobsRoutesOnMux(mux)
+}
+
+// registerStaticRoutes registers static file serving routes
+func (s *Server) registerStaticRoutes(mux *http.ServeMux) {
+	staticHandler, err := web.StaticHandler()
+	if err != nil {
+		log.Logger.Errorf("Failed to create static handler: %v", err)
+		// Fallback to basic root handler
+		mux.HandleFunc("/", rootHandler)
+		return
+	}
+
+	// Serve static files for all non-API routes
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		// If request is for API, don't serve static files
+		if strings.HasPrefix(r.URL.Path, "/api/") {
+			http.NotFound(w, r)
+			return
+		}
+		
+		// For SPA support, serve index.html for non-file requests
+		if !strings.Contains(r.URL.Path, ".") && r.URL.Path != "/" {
+			r.URL.Path = "/"
+		}
+		
+		staticHandler.ServeHTTP(w, r)
+	})
+}
+
+// rootHandler handles root path requests (API-only mode)
 func rootHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusOK)

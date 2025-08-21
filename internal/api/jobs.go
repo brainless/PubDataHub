@@ -187,9 +187,13 @@ func (s *Server) resumeJobHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// registerJobsRoutes registers the jobs-related routes
+// registerJobsRoutes registers the jobs-related routes (legacy)
 func (s *Server) registerJobsRoutes() {
-	mux := s.httpServer.Handler.(*http.ServeMux)
+	s.registerJobsRoutesOnMux(s.httpServer.Handler.(*http.ServeMux))
+}
+
+// registerJobsRoutesOnMux registers the jobs-related routes on provided mux
+func (s *Server) registerJobsRoutesOnMux(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/jobs", s.getJobsHandler)
 	mux.HandleFunc("POST /api/jobs/download", s.startDownloadJobHandler)
 	mux.HandleFunc("POST /api/jobs/{job_id}/pause", s.pauseJobHandler)

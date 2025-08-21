@@ -205,7 +205,7 @@ export default function Settings() {
       )
     }
     
-    if (!jobs() || jobs().length === 0) {
+    if (!jobs() || jobs()?.length === 0) {
       return (
         <div class="bg-gray-50 border border-gray-200 rounded-lg p-8 text-center">
           <div class="text-gray-500 font-medium mb-2">No Downloads</div>
@@ -229,7 +229,7 @@ export default function Settings() {
             </tr>
           </thead>
           <tbody class="bg-white divide-y divide-gray-200">
-            {jobs() && jobs().map((job) => (
+            {jobs()?.map((job) => (
               <tr class="hover:bg-gray-50">
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900">{job.id.substring(0, 8)}...</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 capitalize">{job.type}</td>

@@ -293,8 +293,13 @@ func (s *Server) getDataHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// registerSourcesRoutes registers the sources-related routes
+// registerSourcesRoutes registers the sources-related routes (legacy)
 func (s *Server) registerSourcesRoutes() {
-	s.httpServer.Handler.(*http.ServeMux).HandleFunc("GET /api/sources", s.getSourcesHandler)
-	s.httpServer.Handler.(*http.ServeMux).HandleFunc("GET /api/sources/{source_name}/data", s.getDataHandler)
+	s.registerSourcesRoutesOnMux(s.httpServer.Handler.(*http.ServeMux))
+}
+
+// registerSourcesRoutesOnMux registers the sources-related routes on provided mux
+func (s *Server) registerSourcesRoutesOnMux(mux *http.ServeMux) {
+	mux.HandleFunc("GET /api/sources", s.getSourcesHandler)
+	mux.HandleFunc("GET /api/sources/{source_name}/data", s.getDataHandler)
 }
