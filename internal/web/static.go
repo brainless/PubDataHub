@@ -12,13 +12,13 @@ import (
 func StaticHandler() (http.Handler, error) {
 	// In development, serve from webapp/dist directory
 	// In production, this would be embedded files
-	
+
 	// Get the current working directory to find webapp/dist
 	wd, err := os.Getwd()
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Look for webapp/dist directory
 	distPath := filepath.Join(wd, "webapp", "dist")
 	if _, err := os.Stat(distPath); os.IsNotExist(err) {
@@ -28,6 +28,6 @@ func StaticHandler() (http.Handler, error) {
 			return nil, err
 		}
 	}
-	
+
 	return http.FileServer(http.Dir(distPath)), nil
 }

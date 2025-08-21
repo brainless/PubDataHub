@@ -175,7 +175,8 @@ func TestJobsEndpoints(t *testing.T) {
 	log.InitLogger(true)
 
 	addr := ":8083" // Use a different port to avoid conflicts
-	server := api.NewServer(addr)
+	mockJobMgr := &mockJobManager{}
+	server := api.NewServer(addr, mockJobMgr)
 
 	// Start server in a goroutine
 	go func() {

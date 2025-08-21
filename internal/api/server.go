@@ -93,7 +93,7 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 func (s *Server) registerAPIRoutes(mux *http.ServeMux) {
 	// Health check endpoint
 	mux.HandleFunc("GET /health", healthHandler)
-	
+
 	// API routes
 	s.registerSourcesRoutesOnMux(mux)
 	s.registerJobsRoutesOnMux(mux)
@@ -116,12 +116,12 @@ func (s *Server) registerStaticRoutes(mux *http.ServeMux) {
 			http.NotFound(w, r)
 			return
 		}
-		
+
 		// For SPA support, serve index.html for non-file requests
 		if !strings.Contains(r.URL.Path, ".") && r.URL.Path != "/" {
 			r.URL.Path = "/"
 		}
-		
+
 		staticHandler.ServeHTTP(w, r)
 	})
 }
