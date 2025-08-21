@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/brainless/PubDataHub/internal/api"
@@ -464,15 +466,13 @@ func newServeCmd() *cobra.Command {
 				os.Exit(1)
 			}
 			defer func() {
-				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-				defer cancel()
 				if err := jobManager.Stop(); err != nil {
 					log.Logger.Errorf("Failed to stop job manager: %v", err)
 				}
 			}()
 
-			// Create and start the server
-			server := api.NewServer(addr, jobManager)
+			// Create and start the server with webapp support
+			server := api.NewWebAppServer(addr, jobManager)
 
 			// Start server in a goroutine to allow for graceful shutdown
 			go func() {
@@ -485,8 +485,14 @@ func newServeCmd() *cobra.Command {
 			log.Logger.Infof("API server started on port %s", port)
 			log.Logger.Info("Press Ctrl+C to stop the server")
 
+			// Set up signal handling for graceful shutdown
+			stop := make(chan os.Signal, 1)
+			signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
+
 			// Wait for interrupt signal to gracefully shutdown the server
-			<-context.Background().Done()
+			<-stop
+
+			log.Logger.Info("Shutting down server...")
 
 			// Gracefully shutdown the server
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

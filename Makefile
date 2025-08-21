@@ -63,6 +63,22 @@ build: ## Build CLI binary
 	go build -o pubdatahub cmd/main.go
 	@echo "✅ Build complete! Binary: ./pubdatahub"
 
+build-webapp: ## Build webapp frontend
+	@echo "🏗️  Building webapp frontend..."
+	cd webapp && npm run build
+	@echo "✅ Webapp build complete!"
+
+build-dev: build-webapp ## Build development binary (serves static files from disk)
+	@echo "🏗️  Building development binary..."
+	go build -o pubdatahub-dev cmd/main.go
+	@echo "✅ Development build complete! Binary: ./pubdatahub-dev"
+
+build-prod: build-webapp ## Build production binary (embedded static files)
+	@echo "🏗️  Building production binary with embedded static files..."
+	@cd internal/web && rm -rf dist && cp -r ../../webapp/dist .
+	go build -tags embed -o pubdatahub-prod cmd/main.go
+	@echo "✅ Production build complete! Binary: ./pubdatahub-prod"
+
 build-all: ## Build CLI for multiple platforms
 	@echo "🏗️  Building for multiple platforms..."
 	GOOS=linux GOARCH=amd64 go build -o pubdatahub-linux-amd64 cmd/main.go
