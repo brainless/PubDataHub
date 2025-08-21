@@ -2,10 +2,9 @@ import { createResource, For } from 'solid-js'
 import * as DropdownMenu from '@kobalte/core/dropdown-menu'
 
 interface DataSource {
-  id: string
   name: string
   description: string
-  status: 'available' | 'connected' | 'error'
+  status?: 'available' | 'connected' | 'error'
 }
 
 const fetchDataSources = async (): Promise<DataSource[]> => {
@@ -25,20 +24,17 @@ const fetchDataSources = async (): Promise<DataSource[]> => {
     console.warn('API not available, using mock data:', error instanceof Error ? error.message : String(error))
     return [
       {
-        id: 'hackernews',
-        name: 'Hacker News',
+        name: 'hackernews',
         description: 'Tech news and discussions',
         status: 'available'
       },
       {
-        id: 'reddit',
-        name: 'Reddit',
+        name: 'reddit',
         description: 'Social news aggregation',
         status: 'available'
       },
       {
-        id: 'twitter',
-        name: 'Twitter',
+        name: 'twitter',
         description: 'Social media platform',
         status: 'available'
       }
@@ -52,7 +48,7 @@ export default function Navigation() {
   return (
     <nav class="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
       <div class="flex items-center space-x-6">
-        <h1 class="text-xl font-bold text-gray-900">PubDataHub</h1>
+        <a href="/" class="text-xl font-bold text-gray-900 hover:text-gray-700 transition-colors">PubDataHub</a>
         
         <div class="flex items-center space-x-4">
           <DropdownMenu.Root>
@@ -71,14 +67,19 @@ export default function Navigation() {
                   }>
                     {(source) => (
                       <DropdownMenu.Item class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">
-                <a href={`/sources/${source.id}`} class="flex items-center space-x-3 w-full">
+                <a href={`/sources/${source.name}`} class="flex items-center space-x-3 w-full">
                   <div class={`w-2 h-2 rounded-full ${
                     source.status === 'connected' ? 'bg-green-400' :
                     source.status === 'error' ? 'bg-red-400' : 
                     'bg-gray-400'
                   }`} />
                   <div class="flex-1">
-                    <div class="font-medium">{source.name}</div>
+                    <div class="font-medium">{
+                      source.name === 'hackernews' ? 'Hacker News' :
+                      source.name === 'reddit' ? 'Reddit' :
+                      source.name === 'twitter' ? 'Twitter' :
+                      source.name.charAt(0).toUpperCase() + source.name.slice(1)
+                    }</div>
                     <div class="text-xs text-gray-500">{source.description}</div>
                   </div>
                 </a>
