@@ -10,6 +10,7 @@ import (
 	"github.com/brainless/PubDataHub/internal/config"
 	"github.com/brainless/PubDataHub/internal/datasource"
 	"github.com/brainless/PubDataHub/internal/datasource/hackernews"
+	"github.com/brainless/PubDataHub/internal/jobs"
 	"github.com/brainless/PubDataHub/internal/log"
 	"github.com/brainless/PubDataHub/internal/tui"
 	"github.com/spf13/cobra"
@@ -435,8 +436,43 @@ func newServeCmd() *cobra.Command {
 			port, _ := cmd.Flags().GetString("port")
 			addr := fmt.Sprintf(":%s", port)
 
+			// Create data sources
+			dataSources := make(map[string]datasource.DataSource)
+			// For now, just add hackernews as an example
+			// In a real implementation, this would be configurable
+			hnSource := hackernews.NewHackerNewsDataSource(100)
+			if err := hnSource.InitializeStorage(config.AppConfig.StoragePath); err != nil {
+				log.Logger.Errorf("Failed to initialize Hacker News storage: %v", err)
+			} else {
+				dataSources["hackernews"] = hnSource
+			}
+
+			// Create job manager
+			jobManager, err := jobs.NewEnhancedJobManager(
+				config.AppConfig.StoragePath,
+				dataSources,
+				jobs.DefaultManagerConfig(),
+			)
+			if err != nil {
+				log.Logger.Errorf("Failed to create job manager: %v", err)
+				os.Exit(1)
+			}
+
+			// Start job manager
+			if err := jobManager.Start(); err != nil {
+				log.Logger.Errorf("Failed to start job manager: %v", err)
+				os.Exit(1)
+			}
+			defer func() {
+				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
+				if err := jobManager.Stop(); err != nil {
+					log.Logger.Errorf("Failed to stop job manager: %v", err)
+				}
+			}()
+
 			// Create and start the server
-			server := api.NewServer(addr)
+			server := api.NewServer(addr, jobManager)
 
 			// Start server in a goroutine to allow for graceful shutdown
 			go func() {

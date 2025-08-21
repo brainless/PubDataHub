@@ -49,14 +49,25 @@ func convertJobStatusToJobInfo(status *jobs.JobStatus) JobInfo {
 
 // getJobsHandler handles requests to list jobs
 func (s *Server) getJobsHandler(w http.ResponseWriter, r *http.Request) {
-	// TODO: Implement actual job manager integration
-	// For now, return an empty list
-	jobsList := []JobInfo{}
+	// Use the job manager to list jobs
+	filter := jobs.JobFilter{}
+
+	jobsList, err := s.jobManager.ListJobs(filter)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to list jobs: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// Convert job statuses to API response format
+	apiJobs := make([]JobInfo, len(jobsList))
+	for i, jobStatus := range jobsList {
+		apiJobs[i] = convertJobStatusToJobInfo(jobStatus)
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 
-	if err := json.NewEncoder(w).Encode(jobsList); err != nil {
+	if err := json.NewEncoder(w).Encode(apiJobs); err != nil {
 		http.Error(w, "Failed to encode jobs", http.StatusInternalServerError)
 		return
 	}
@@ -119,8 +130,13 @@ func (s *Server) pauseJobHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: Implement actual job pausing with job manager
-	// For now, return a success response
+	// Use the job manager to pause the job
+	err := s.jobManager.PauseJob(jobID)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to pause job: %v", err), http.StatusInternalServerError)
+		return
+	}
+
 	response := map[string]interface{}{
 		"message": fmt.Sprintf("Job %s paused successfully", jobID),
 		"job_id":  jobID,
@@ -150,8 +166,13 @@ func (s *Server) resumeJobHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: Implement actual job resuming with job manager
-	// For now, return a success response
+	// Use the job manager to resume the job
+	err := s.jobManager.ResumeJob(jobID)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to resume job: %v", err), http.StatusInternalServerError)
+		return
+	}
+
 	response := map[string]interface{}{
 		"message": fmt.Sprintf("Job %s resumed successfully", jobID),
 		"job_id":  jobID,
